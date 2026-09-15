@@ -61,6 +61,14 @@ export interface RadarrMovie {
     };
     originalFilePath?: string;
     qualityCutoffNotMet: boolean;
+    quality?: {
+      quality: {
+        id: number;
+        name: string;
+        source?: string;
+        resolution?: number;
+      };
+    };
   };
 }
 

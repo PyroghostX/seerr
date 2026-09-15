@@ -57,8 +57,10 @@ router.get<unknown, StatusResponse>('/status', async (req, res) => {
       : settings.fullPublicSettings.versionCheck;
   let updateAvailable = false;
   let commitsBehind = 0;
+  // Local fork builds (commit tag ends with -upgrade) are never compared against upstream
+  const isForkBuild = commitTag.endsWith('-upgrade');
 
-  if (checkUpdate) {
+  if (checkUpdate && !isForkBuild) {
     const githubApi = new GithubAPI();
 
     if (currentVersion.startsWith('develop-') && commitTag !== 'local') {

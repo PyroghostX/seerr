@@ -1,11 +1,13 @@
 import IMDBRadarrProxy from '@server/api/rating/imdbRadarrProxy';
 import RottenTomatoes from '@server/api/rating/rottentomatoes';
 import { type RatingResponse } from '@server/api/ratings';
+import RadarrAPI from '@server/api/servarr/radarr';
 import TheMovieDb from '@server/api/themoviedb';
-import { MediaType } from '@server/constants/media';
+import { MediaStatus, MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
 import { Watchlist } from '@server/entity/Watchlist';
+import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { mapMovieDetails } from '@server/models/Movie';
 import { mapMovieResult } from '@server/models/Search';
@@ -35,6 +37,41 @@ movieRoutes.get('/:id', async (req, res, next) => {
     });
 
     const data = mapMovieDetails(tmdbMovie, media, onUserWatchlist);
+
+    // When upgrade requests are enabled, tell the client what resolution Radarr currently holds
+    // so the UI can decide between "Upgrade Quality to 1080" and "Already Available in 1080".
+    if (media?.status === MediaStatus.AVAILABLE) {
+      const radarrSettings = getSettings().radarr.find(
+        (r) => !r.is4k && r.isDefault && r.upgradeProfileId
+      );
+      if (radarrSettings) {
+        try {
+          const radarr = new RadarrAPI({
+            apiKey: radarrSettings.apiKey,
+            url: RadarrAPI.buildUrl(radarrSettings, '/api/v3'),
+          });
+          const radarrMovie = await radarr.getMovieByTmdbId(tmdbMovie.id);
+          const file = radarrMovie.movieFile;
+          let resolution = file?.quality?.quality?.resolution;
+          if (!resolution && file?.mediaInfo?.resolution) {
+            // mediaInfo.resolution looks like "1920x1080"
+            const height = Number(file.mediaInfo.resolution.split('x')[1]);
+            if (height) {
+              resolution = height;
+            }
+          }
+          if (resolution) {
+            data.currentResolution = resolution;
+          }
+        } catch (e) {
+          logger.debug('Could not read current file resolution from Radarr', {
+            label: 'API',
+            errorMessage: e.message,
+            movieId: req.params.id,
+          });
+        }
+      }
+    }
 
     // TMDB issue where it doesnt fallback to English when no overview is available in requested locale.
     if (!data.overview) {

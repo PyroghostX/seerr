@@ -627,6 +627,7 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
             mediaType="movie"
             media={data.mediaInfo}
             tmdbId={data.id}
+            currentResolution={data.currentResolution}
             onUpdate={() => revalidate()}
           />
           {(data.mediaInfo?.status === MediaStatus.AVAILABLE ||

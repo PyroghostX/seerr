@@ -81,6 +81,8 @@ export interface MovieDetails {
     backdropPath?: string;
   };
   mediaInfo?: Media;
+  /** Vertical resolution of the file currently in Radarr (e.g. 720, 1080), if known */
+  currentResolution?: number;
   externalIds: ExternalIds;
   mediaUrl?: string;
   watchProviders?: WatchProviders[];

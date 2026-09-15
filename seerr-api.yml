@@ -937,6 +937,11 @@ components:
           type: number
           example: 123
           readOnly: true
+        currentResolution:
+          type: number
+          example: 720
+          nullable: true
+          description: Vertical resolution of the file currently in Radarr, only set when upgrade requests are enabled and the movie is available.
         imdbId:
           type: string
           example: 'tt123'

@@ -29,7 +29,9 @@ const messages = defineMessages('components.RequestButton', {
   requestmore: 'Request More',
   requestmore4k: 'Request More in 4K',
   requestupgrade: 'Request Upgrade',
-  viewupgraderequest: 'View Upgrade Request',
+  upgradeto1080: 'Upgrade Quality to 1080',
+  alreadyavailable1080: 'Already Available in 1080',
+  upgraderequested1080: 'Upgrade to 1080 Requested',
   approverequest: 'Approve Request',
   approverequest4k: 'Approve 4K Request',
   declinerequest: 'Decline Request',
@@ -49,6 +51,7 @@ interface ButtonOption {
   text: string;
   action: () => void;
   svg?: React.ReactNode;
+  disabled?: boolean;
 }
 
 interface RequestButtonProps {
@@ -58,6 +61,8 @@ interface RequestButtonProps {
   media?: Media;
   isShowComplete?: boolean;
   is4kShowComplete?: boolean;
+  /** Vertical resolution of the file Radarr currently has (movies only) */
+  currentResolution?: number;
 }
 
 const RequestButton = ({
@@ -67,6 +72,7 @@ const RequestButton = ({
   mediaType,
   isShowComplete = false,
   is4kShowComplete = false,
+  currentResolution,
 }: RequestButtonProps) => {
   const intl = useIntl();
   const settings = useSettings();
@@ -334,22 +340,57 @@ const RequestButton = ({
   }
 
   // Upgrade request button (media already available in the non-4K library)
-  if (
+  const canRequestNon4k = hasPermission(
+    [
+      Permission.REQUEST,
+      mediaType === 'movie' ? Permission.REQUEST_MOVIE : Permission.REQUEST_TV,
+    ],
+    { type: 'or' }
+  );
+
+  if (mediaType === 'movie') {
+    // Movies: only when Radarr told us what resolution it currently holds.
+    if (
+      media &&
+      media.status === MediaStatus.AVAILABLE &&
+      upgradeEnabled &&
+      canRequestNon4k &&
+      currentResolution !== undefined
+    ) {
+      if (currentResolution >= 1080) {
+        buttons.push({
+          id: 'upgrade-already-1080',
+          text: intl.formatMessage(messages.alreadyavailable1080),
+          action: () => undefined,
+          svg: <CheckIcon />,
+          disabled: true,
+        });
+      } else if (existingUpgradeRequest) {
+        buttons.push({
+          id: 'upgrade-requested',
+          text: intl.formatMessage(messages.upgraderequested1080),
+          action: () => undefined,
+          svg: <ArrowUpCircleIcon />,
+          disabled: true,
+        });
+      } else {
+        buttons.push({
+          id: 'request-upgrade',
+          text: intl.formatMessage(messages.upgradeto1080),
+          action: () => {
+            setShowUpgradeModal(true);
+          },
+          svg: <ArrowUpCircleIcon />,
+        });
+      }
+    }
+  } else if (
     media &&
     (media.status === MediaStatus.AVAILABLE ||
-      (mediaType === 'tv' &&
-        media.status === MediaStatus.PARTIALLY_AVAILABLE)) &&
+      media.status === MediaStatus.PARTIALLY_AVAILABLE) &&
     upgradeEnabled &&
     !existingUpgradeRequest &&
-    hasPermission(
-      [
-        Permission.REQUEST,
-        mediaType === 'movie'
-          ? Permission.REQUEST_MOVIE
-          : Permission.REQUEST_TV,
-      ],
-      { type: 'or' }
-    )
+    canRequestNon4k
   ) {
     buttons.push({
       id: 'request-upgrade',
@@ -467,13 +508,21 @@ const RequestButton = ({
             <span>{buttonOne.text}</span>
           </>
         }
-        onClick={buttonOne.action}
-        className="ml-2"
+        onClick={buttonOne.disabled ? undefined : buttonOne.action}
+        disabled={buttonOne.disabled}
+        className={`ml-2 ${
+          buttonOne.disabled ? 'cursor-not-allowed opacity-60' : ''
+        }`}
       >
         {others && others.length > 0
           ? others.map((button) => (
               <ButtonWithDropdown.Item
-                onClick={button.action}
+                onClick={button.disabled ? undefined : button.action}
+                style={
+                  button.disabled
+                    ? { opacity: 0.6, cursor: 'not-allowed' }
+                    : undefined
+                }
                 key={`request-option-${button.id}`}
               >
                 {button.svg}
