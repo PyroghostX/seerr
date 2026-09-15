@@ -46,6 +46,10 @@ const messages = defineMessages('components.Settings.RadarrModal', {
   syncEnabled: 'Enable Scan',
   externalUrl: 'External URL',
   qualityprofile: 'Quality Profile',
+  upgradeprofile: 'Upgrade Quality Profile',
+  upgradeprofileTip:
+    'Optional. Users can request an upgrade for available titles; the title is switched to this profile and searched.',
+  noupgradeprofile: 'Disabled',
   rootfolder: 'Root Folder',
   minimumAvailability: 'Minimum Availability',
   server4k: '4K Server',
@@ -233,6 +237,7 @@ const RadarrModal = ({ onClose, radarr, onSave }: RadarrModalProps) => {
           apiKey: radarr?.apiKey,
           baseUrl: radarr?.baseUrl,
           activeProfileId: radarr?.activeProfileId,
+          upgradeProfileId: radarr?.upgradeProfileId ?? '',
           rootFolder: radarr?.activeDirectory,
           minimumAvailability: radarr?.minimumAvailability ?? 'released',
           tags: radarr?.tags ?? [],
@@ -250,6 +255,12 @@ const RadarrModal = ({ onClose, radarr, onSave }: RadarrModalProps) => {
               (profile) => profile.id === Number(values.activeProfileId)
             )?.name;
 
+            const upgradeProfileName = values.upgradeProfileId
+              ? testResponse.profiles.find(
+                  (profile) => profile.id === Number(values.upgradeProfileId)
+                )?.name
+              : undefined;
+
             const submission = {
               name: values.name,
               hostname: values.hostname,
@@ -259,6 +270,10 @@ const RadarrModal = ({ onClose, radarr, onSave }: RadarrModalProps) => {
               baseUrl: values.baseUrl,
               activeProfileId: Number(values.activeProfileId),
               activeProfileName: profileName,
+              upgradeProfileId: values.upgradeProfileId
+                ? Number(values.upgradeProfileId)
+                : undefined,
+              upgradeProfileName,
               activeDirectory: values.rootFolder,
               is4k: values.is4k,
               minimumAvailability: values.minimumAvailability,
@@ -568,6 +583,44 @@ const RadarrModal = ({ onClose, radarr, onSave }: RadarrModalProps) => {
                       typeof errors.activeProfileId === 'string' && (
                         <div className="error">{errors.activeProfileId}</div>
                       )}
+                  </div>
+                </div>
+                <div className="form-row">
+                  <label htmlFor="upgradeProfileId" className="text-label">
+                    {intl.formatMessage(messages.upgradeprofile)}
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.upgradeprofileTip)}
+                    </span>
+                  </label>
+                  <div className="form-input-area">
+                    <div className="form-input-field">
+                      <Field
+                        as="select"
+                        id="upgradeProfileId"
+                        name="upgradeProfileId"
+                        disabled={!isValidated || isTesting}
+                      >
+                        <option value="">
+                          {intl.formatMessage(messages.noupgradeprofile)}
+                        </option>
+                        {testResponse.profiles.length > 0 &&
+                          testResponse.profiles
+                            .toSorted((a, b) =>
+                              a.name.localeCompare(b.name, intl.locale, {
+                                numeric: true,
+                                sensitivity: 'base',
+                              })
+                            )
+                            .map((profile) => (
+                              <option
+                                key={`upgrade-profile-${profile.id}`}
+                                value={profile.id}
+                              >
+                                {profile.name}
+                              </option>
+                            ))}
+                      </Field>
+                    </div>
                   </div>
                 </div>
                 <div className="form-row">

@@ -1,10 +1,15 @@
 import ButtonWithDropdown from '@app/components/Common/ButtonWithDropdown';
 import RequestModal from '@app/components/RequestModal';
+import UpgradeRequestModal from '@app/components/RequestModal/UpgradeRequestModal';
 import useSettings from '@app/hooks/useSettings';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
-import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import { Transition } from '@headlessui/react';
+import {
+  ArrowDownTrayIcon,
+  ArrowUpCircleIcon,
+} from '@heroicons/react/24/outline';
 import {
   CheckIcon,
   InformationCircleIcon,
@@ -23,6 +28,8 @@ const messages = defineMessages('components.RequestButton', {
   viewrequest4k: 'View 4K Request',
   requestmore: 'Request More',
   requestmore4k: 'Request More in 4K',
+  requestupgrade: 'Request Upgrade',
+  viewupgraderequest: 'View Upgrade Request',
   approverequest: 'Approve Request',
   approverequest4k: 'Approve 4K Request',
   declinerequest: 'Decline Request',
@@ -67,6 +74,7 @@ const RequestButton = ({
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showRequest4kModal, setShowRequest4kModal] = useState(false);
   const [editRequest, setEditRequest] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   // All pending requests
   const activeRequests = media?.requests.filter(
@@ -91,6 +99,19 @@ const RequestButton = ({
         ) ?? active4kRequests[0])
       : undefined;
   }, [active4kRequests, user]);
+
+  // Existing upgrade request (any status except declined) blocks another upgrade request
+  const existingUpgradeRequest = media?.requests?.find(
+    (request) =>
+      request.isUpgrade &&
+      !request.is4k &&
+      request.status !== MediaRequestStatus.DECLINED
+  );
+
+  const upgradeEnabled =
+    mediaType === 'movie'
+      ? settings.currentSettings.movieUpgradeEnabled
+      : settings.currentSettings.seriesUpgradeEnabled;
 
   const modifyRequest = async (
     request: MediaRequest,
@@ -312,6 +333,34 @@ const RequestButton = ({
     });
   }
 
+  // Upgrade request button (media already available in the non-4K library)
+  if (
+    media &&
+    (media.status === MediaStatus.AVAILABLE ||
+      (mediaType === 'tv' &&
+        media.status === MediaStatus.PARTIALLY_AVAILABLE)) &&
+    upgradeEnabled &&
+    !existingUpgradeRequest &&
+    hasPermission(
+      [
+        Permission.REQUEST,
+        mediaType === 'movie'
+          ? Permission.REQUEST_MOVIE
+          : Permission.REQUEST_TV,
+      ],
+      { type: 'or' }
+    )
+  ) {
+    buttons.push({
+      id: 'request-upgrade',
+      text: intl.formatMessage(messages.requestupgrade),
+      action: () => {
+        setShowUpgradeModal(true);
+      },
+      svg: <ArrowUpCircleIcon />,
+    });
+  }
+
   // 4K request button
   if (
     (!media ||
@@ -391,6 +440,26 @@ const RequestButton = ({
         }}
         onCancel={() => setShowRequest4kModal(false)}
       />
+      <Transition
+        as="div"
+        enter="transition-opacity duration-300"
+        enterFrom="opacity-0"
+        enterTo="opacity-100"
+        leave="transition-opacity duration-300"
+        leaveFrom="opacity-100"
+        leaveTo="opacity-0"
+        show={showUpgradeModal}
+      >
+        <UpgradeRequestModal
+          tmdbId={tmdbId}
+          type={mediaType}
+          onComplete={() => {
+            onUpdate();
+            setShowUpgradeModal(false);
+          }}
+          onCancel={() => setShowUpgradeModal(false)}
+        />
+      </Transition>
       <ButtonWithDropdown
         text={
           <>

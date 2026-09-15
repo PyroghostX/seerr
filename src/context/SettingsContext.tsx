@@ -19,6 +19,8 @@ const defaultSettings = {
   mediaServerLogin: true,
   movie4kEnabled: false,
   series4kEnabled: false,
+  movieUpgradeEnabled: false,
+  seriesUpgradeEnabled: false,
   discoverRegion: '',
   streamingRegion: '',
   originalLanguage: '',

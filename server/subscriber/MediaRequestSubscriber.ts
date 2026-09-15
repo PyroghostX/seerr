@@ -297,6 +297,41 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
           return;
         }
 
+        if (entity.isUpgrade) {
+          const radarr = new RadarrAPI({
+            apiKey: radarrSettings.apiKey,
+            url: RadarrAPI.buildUrl(radarrSettings, '/api/v3'),
+          });
+          const requestRepository = manager.getRepository(MediaRequest);
+          try {
+            await radarr.upgradeMovie({
+              tmdbId: media.tmdbId,
+              qualityProfileId: qualityProfile,
+              searchNow: !radarrSettings.preventSearch,
+            });
+            logger.info(
+              'Upgrade request sent to Radarr, marking request as COMPLETED',
+              {
+                label: 'Media Request',
+                requestId: entity.id,
+                mediaId: entity.media.id,
+                qualityProfileId: qualityProfile,
+              }
+            );
+            entity.status = MediaRequestStatus.COMPLETED;
+          } catch (e) {
+            logger.error('Failed to send upgrade request to Radarr', {
+              label: 'Media Request',
+              requestId: entity.id,
+              mediaId: entity.media.id,
+              errorMessage: e instanceof Error ? e.message : String(e),
+            });
+            entity.status = MediaRequestStatus.FAILED;
+          }
+          await requestRepository.save(entity);
+          return;
+        }
+
         if (
           media[entity.is4k ? 'status4k' : 'status'] === MediaStatus.AVAILABLE
         ) {
@@ -547,6 +582,58 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
 
         if (!media) {
           throw new Error('Media data not found');
+        }
+
+        if (entity.isUpgrade) {
+          const requestRepository = manager.getRepository(MediaRequest);
+          const upgradeProfileId =
+            entity.profileId ?? sonarrSettings.upgradeProfileId;
+          try {
+            if (!upgradeProfileId) {
+              throw new Error('No upgrade quality profile configured');
+            }
+            const tmdbForUpgrade = new TheMovieDb();
+            const showForUpgrade = await tmdbForUpgrade.getTvShow({
+              tvId: media.tmdbId,
+            });
+            const tvdbIdForUpgrade =
+              showForUpgrade.external_ids.tvdb_id ?? media.tvdbId;
+            if (!tvdbIdForUpgrade) {
+              throw new Error('TVDB ID not found');
+            }
+            const sonarrForUpgrade = new SonarrAPI({
+              apiKey: sonarrSettings.apiKey,
+              url: SonarrAPI.buildUrl(sonarrSettings, '/api/v3'),
+            });
+            await sonarrForUpgrade.upgradeSeries({
+              tvdbid: tvdbIdForUpgrade,
+              profileId: upgradeProfileId,
+              searchNow: !sonarrSettings.preventSearch,
+            });
+            logger.info(
+              'Upgrade request sent to Sonarr, marking request as COMPLETED',
+              {
+                label: 'Media Request',
+                requestId: entity.id,
+                mediaId: entity.media.id,
+                qualityProfileId: upgradeProfileId,
+              }
+            );
+            entity.status = MediaRequestStatus.COMPLETED;
+            entity.seasons.forEach((season) => {
+              season.status = MediaRequestStatus.COMPLETED;
+            });
+          } catch (e) {
+            logger.error('Failed to send upgrade request to Sonarr', {
+              label: 'Media Request',
+              requestId: entity.id,
+              mediaId: entity.media.id,
+              errorMessage: e instanceof Error ? e.message : String(e),
+            });
+            entity.status = MediaRequestStatus.FAILED;
+          }
+          await requestRepository.save(entity);
+          return;
         }
 
         if (
@@ -1073,7 +1160,10 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         await this.updateParentStatus(manager, event.entity as MediaRequest);
       });
 
-      if (event.entity.status === MediaRequestStatus.COMPLETED) {
+      if (
+        event.entity.status === MediaRequestStatus.COMPLETED &&
+        !event.entity.isUpgrade
+      ) {
         if (event.entity.media.mediaType === MediaType.MOVIE) {
           await this.notifyAvailableMovie(event.entity as MediaRequest, event);
         }

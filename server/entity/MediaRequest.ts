@@ -38,6 +38,7 @@ export class QuotaRestrictedError extends Error {}
 export class DuplicateMediaRequestError extends Error {}
 export class NoSeasonsAvailableError extends Error {}
 export class BlocklistedMediaError extends Error {}
+export class UpgradeNotAvailableError extends Error {}
 
 type MediaRequestOptions = {
   isAutoRequest?: boolean;
@@ -162,6 +163,20 @@ export class MediaRequest {
       },
       relations: ['requests'],
     });
+
+    if (requestBody.isUpgrade) {
+      if (!media) {
+        throw new UpgradeNotAvailableError(
+          'This title is not available yet, so it cannot be upgraded.'
+        );
+      }
+      return MediaRequest.createUpgradeRequest(
+        requestBody,
+        requestUser,
+        user,
+        media
+      );
+    }
 
     if (!media) {
       media = new Media({
@@ -565,6 +580,106 @@ export class MediaRequest {
     }
   }
 
+  private static async createUpgradeRequest(
+    requestBody: MediaRequestBody,
+    requestUser: User,
+    user: User,
+    media: Media
+  ): Promise<MediaRequest> {
+    const requestRepository = getRepository(MediaRequest);
+    const settings = getSettings();
+    const isMovie = requestBody.mediaType === MediaType.MOVIE;
+
+    if (media.status === MediaStatus.BLOCKLISTED) {
+      throw new BlocklistedMediaError('This media is blocklisted.');
+    }
+
+    if (
+      media.status !== MediaStatus.AVAILABLE &&
+      !(!isMovie && media.status === MediaStatus.PARTIALLY_AVAILABLE)
+    ) {
+      throw new UpgradeNotAvailableError(
+        'This title is not available yet, so it cannot be upgraded.'
+      );
+    }
+
+    const server = isMovie
+      ? settings.radarr.find((r) => !r.is4k && r.isDefault)
+      : settings.sonarr.find((s) => !s.is4k && s.isDefault);
+
+    if (!server || !server.upgradeProfileId) {
+      throw new UpgradeNotAvailableError(
+        'Upgrade requests are not enabled. Set an upgrade quality profile on the default server.'
+      );
+    }
+
+    const upgradeProfileId = server.upgradeProfileId;
+
+    const duplicate = (media.requests ?? []).find(
+      (r) =>
+        r.isUpgrade &&
+        !r.is4k &&
+        r.status !== MediaRequestStatus.DECLINED &&
+        r.profileId === upgradeProfileId
+    );
+
+    if (duplicate) {
+      throw new DuplicateMediaRequestError(
+        'An upgrade request for this title already exists.'
+      );
+    }
+
+    const autoApprove = user.hasPermission(
+      [
+        Permission.AUTO_APPROVE,
+        isMovie ? Permission.AUTO_APPROVE_MOVIE : Permission.AUTO_APPROVE_TV,
+        Permission.MANAGE_REQUESTS,
+      ],
+      { type: 'or' }
+    );
+    const status = autoApprove
+      ? MediaRequestStatus.APPROVED
+      : MediaRequestStatus.PENDING;
+
+    const seasons = isMovie
+      ? []
+      : (media.seasons ?? [])
+          .filter(
+            (season) =>
+              season.status === MediaStatus.AVAILABLE ||
+              season.status === MediaStatus.PARTIALLY_AVAILABLE
+          )
+          .map(
+            (season) =>
+              new SeasonRequest({
+                seasonNumber: season.seasonNumber,
+                status,
+              })
+          );
+
+    if (!isMovie && seasons.length === 0) {
+      throw new NoSeasonsAvailableError('No seasons available to upgrade');
+    }
+
+    const request = new MediaRequest({
+      type: requestBody.mediaType,
+      media,
+      requestedBy: requestUser,
+      status,
+      modifiedBy: autoApprove ? user : undefined,
+      is4k: false,
+      serverId: server.id,
+      profileId: upgradeProfileId,
+      isUpgrade: true,
+      isAutoRequest: false,
+      ignoreQuota: true,
+      seasons,
+    });
+
+    await requestRepository.save(request);
+    return request;
+  }
+
   @PrimaryGeneratedColumn()
   public id: number;
 
@@ -667,6 +782,9 @@ export class MediaRequest {
   @Column({ default: false })
   public ignoreQuota: boolean;
 
+  @Column({ default: false })
+  public isUpgrade: boolean;
+
   constructor(init?: Partial<MediaRequest>) {
     Object.assign(this, init);
   }
@@ -726,6 +844,7 @@ export class MediaRequest {
 
       if (
         this.status === MediaRequestStatus.APPROVED &&
+        !this.isUpgrade &&
         media[this.is4k ? 'status4k' : 'status'] === MediaStatus.AVAILABLE
       ) {
         logger.info(

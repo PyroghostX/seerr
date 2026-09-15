@@ -44,6 +44,10 @@ const messages = defineMessages('components.Settings.SonarrModal', {
   apiKey: 'API Key',
   baseUrl: 'URL Base',
   qualityprofile: 'Quality Profile',
+  upgradeprofile: 'Upgrade Quality Profile',
+  upgradeprofileTip:
+    'Optional. Users can request an upgrade for available titles; the title is switched to this profile and searched.',
+  noupgradeprofile: 'Disabled',
   languageprofile: 'Language Profile',
   rootfolder: 'Root Folder',
   seriesType: 'Series Type',
@@ -245,6 +249,7 @@ const SonarrModal = ({ onClose, sonarr, onSave }: SonarrModalProps) => {
           apiKey: sonarr?.apiKey,
           baseUrl: sonarr?.baseUrl,
           activeProfileId: sonarr?.activeProfileId,
+          upgradeProfileId: sonarr?.upgradeProfileId ?? '',
           activeLanguageProfileId: sonarr?.activeLanguageProfileId,
           rootFolder: sonarr?.activeDirectory,
           seriesType: sonarr?.seriesType,
@@ -273,6 +278,12 @@ const SonarrModal = ({ onClose, sonarr, onSave }: SonarrModalProps) => {
               (profile) => profile.id === Number(values.activeAnimeProfileId)
             )?.name;
 
+            const upgradeProfileName = values.upgradeProfileId
+              ? testResponse.profiles.find(
+                  (profile) => profile.id === Number(values.upgradeProfileId)
+                )?.name
+              : undefined;
+
             const submission = {
               name: values.name,
               hostname: values.hostname,
@@ -285,6 +296,10 @@ const SonarrModal = ({ onClose, sonarr, onSave }: SonarrModalProps) => {
                 ? Number(values.activeLanguageProfileId)
                 : undefined,
               activeProfileName: profileName,
+              upgradeProfileId: values.upgradeProfileId
+                ? Number(values.upgradeProfileId)
+                : undefined,
+              upgradeProfileName,
               activeDirectory: values.rootFolder,
               seriesType: values.seriesType,
               animeSeriesType: values.animeSeriesType,
@@ -627,6 +642,44 @@ const SonarrModal = ({ onClose, sonarr, onSave }: SonarrModalProps) => {
                       typeof errors.activeProfileId === 'string' && (
                         <div className="error">{errors.activeProfileId}</div>
                       )}
+                  </div>
+                </div>
+                <div className="form-row">
+                  <label htmlFor="upgradeProfileId" className="text-label">
+                    {intl.formatMessage(messages.upgradeprofile)}
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.upgradeprofileTip)}
+                    </span>
+                  </label>
+                  <div className="form-input-area">
+                    <div className="form-input-field">
+                      <Field
+                        as="select"
+                        id="upgradeProfileId"
+                        name="upgradeProfileId"
+                        disabled={!isValidated || isTesting}
+                      >
+                        <option value="">
+                          {intl.formatMessage(messages.noupgradeprofile)}
+                        </option>
+                        {testResponse.profiles.length > 0 &&
+                          testResponse.profiles
+                            .toSorted((a, b) =>
+                              a.name.localeCompare(b.name, intl.locale, {
+                                numeric: true,
+                                sensitivity: 'base',
+                              })
+                            )
+                            .map((profile) => (
+                              <option
+                                key={`upgrade-profile-${profile.id}`}
+                                value={profile.id}
+                              >
+                                {profile.name}
+                              </option>
+                            ))}
+                      </Field>
+                    </div>
                   </div>
                 </div>
                 <div className="form-row">

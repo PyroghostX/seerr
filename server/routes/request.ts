@@ -14,6 +14,7 @@ import {
   NoSeasonsAvailableError,
   QuotaRestrictedError,
   RequestPermissionError,
+  UpgradeNotAvailableError,
 } from '@server/entity/MediaRequest';
 import SeasonRequest from '@server/entity/SeasonRequest';
 import { User } from '@server/entity/User';
@@ -328,6 +329,8 @@ requestRoutes.post<never, MediaRequest, MediaRequestBody>(
           return next({ status: 202, message: error.message });
         case BlocklistedMediaError:
           return next({ status: 403, message: error.message });
+        case UpgradeNotAvailableError:
+          return next({ status: 400, message: error.message });
         default:
           return next({ status: 500, message: error.message });
       }

@@ -35,6 +35,7 @@ import { FormattedRelativeTime, useIntl } from 'react-intl';
 import useSWR, { mutate } from 'swr';
 
 const messages = defineMessages('components.RequestList.RequestItem', {
+  upgrade: 'Upgrade',
   seasons: '{seasonCount, plural, one {Season} other {Seasons}}',
   failedretry: 'Something went wrong while retrying the request.',
   failedmodify: 'Something went wrong while modifying the request.',
@@ -137,6 +138,13 @@ const RequestItemError = ({
                 <span className="card-field-name">
                   {intl.formatMessage(globalMessages.status)}
                 </span>
+                {requestData.isUpgrade && (
+                  <span className="mr-2">
+                    <Badge badgeType="primary">
+                      {intl.formatMessage(messages.upgrade)}
+                    </Badge>
+                  </span>
+                )}
                 {requestData.status === MediaRequestStatus.DECLINED ||
                 requestData.status === MediaRequestStatus.FAILED ? (
                   <Badge badgeType="danger">

@@ -353,6 +353,54 @@ class SonarrAPI extends ServarrBase<{
     }
   }
 
+  public async upgradeSeries(options: {
+    tvdbid: number;
+    profileId: number;
+    searchNow: boolean;
+  }): Promise<SonarrSeries> {
+    const series = await this.getSeriesByTvdbId(options.tvdbid);
+
+    if (!series.id) {
+      throw new Error('Series is not in Sonarr, cannot upgrade');
+    }
+
+    const response = await this.axios.put<SonarrSeries>(
+      `/series/${series.id}`,
+      {
+        ...series,
+        qualityProfileId: options.profileId,
+        monitored: true,
+      }
+    );
+
+    logger.info(
+      'Changed quality profile of existing series in Sonarr for upgrade.',
+      {
+        label: 'Sonarr',
+        seriesId: response.data.id,
+        seriesTitle: response.data.title,
+        qualityProfileId: options.profileId,
+      }
+    );
+
+    if (options.searchNow) {
+      try {
+        await this.runCommand('SeriesSearch', { seriesId: response.data.id });
+      } catch (e) {
+        logger.error(
+          'Something went wrong while executing Sonarr series search.',
+          {
+            label: 'Sonarr API',
+            errorMessage: e.message,
+            seriesId: response.data.id,
+          }
+        );
+      }
+    }
+
+    return response.data;
+  }
+
   public async searchSeries(seriesId: number): Promise<void> {
     logger.info('Executing series search command.', {
       label: 'Sonarr API',

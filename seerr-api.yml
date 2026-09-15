@@ -585,6 +585,14 @@ components:
         activeProfileName:
           type: string
           example: 720p/1080p
+        upgradeProfileId:
+          type: number
+          example: 2
+          nullable: true
+        upgradeProfileName:
+          type: string
+          example: 1080p
+          nullable: true
         activeDirectory:
           type: string
           example: '/movies'
@@ -648,6 +656,14 @@ components:
         activeProfileName:
           type: string
           example: 720p/1080p
+        upgradeProfileId:
+          type: number
+          example: 2
+          nullable: true
+        upgradeProfileName:
+          type: string
+          example: 1080p
+          nullable: true
         activeDirectory:
           type: string
           example: '/tv/'
@@ -713,6 +729,12 @@ components:
         - plexClientIdentifier
       properties:
         initialized:
+          type: boolean
+          example: false
+        movieUpgradeEnabled:
+          type: boolean
+          example: false
+        seriesUpgradeEnabled:
           type: boolean
           example: false
         plexClientIdentifier:
@@ -1277,6 +1299,10 @@ components:
           type: boolean
           example: false
           description: If true, this request will not count against the user's quota. Requires MANAGE_REQUESTS permission.
+        isUpgrade:
+          type: boolean
+          example: false
+          description: If true, this is a quality-upgrade request for media that is already available.
       required:
         - id
         - status
@@ -6615,6 +6641,10 @@ paths:
                   type: boolean
                   example: false
                   description: If true, this request will not count against the user's quota. Requires MANAGE_REQUESTS permission.
+                isUpgrade:
+                  type: boolean
+                  example: false
+                  description: Request a quality upgrade for media that is already available. Uses the default server's upgrade quality profile.
               required:
                 - mediaType
                 - mediaId

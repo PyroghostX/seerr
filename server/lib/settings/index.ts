@@ -76,6 +76,8 @@ export interface DVRSettings {
   activeProfileId: number;
   activeProfileName: string;
   activeDirectory: string;
+  upgradeProfileId?: number;
+  upgradeProfileName?: string;
   tags: number[];
   is4k: boolean;
   isDefault: boolean;
@@ -200,6 +202,8 @@ interface FullPublicSettings extends PublicSettings {
   mediaServerLogin: boolean;
   movie4kEnabled: boolean;
   series4kEnabled: boolean;
+  movieUpgradeEnabled: boolean;
+  seriesUpgradeEnabled: boolean;
   discoverRegion: string;
   streamingRegion: string;
   originalLanguage: string;
@@ -727,6 +731,14 @@ class Settings {
       ),
       series4kEnabled: this.data.sonarr.some(
         (sonarr) => sonarr.is4k && sonarr.isDefault
+      ),
+      movieUpgradeEnabled: this.data.radarr.some(
+        (radarr) =>
+          !radarr.is4k && radarr.isDefault && !!radarr.upgradeProfileId
+      ),
+      seriesUpgradeEnabled: this.data.sonarr.some(
+        (sonarr) =>
+          !sonarr.is4k && sonarr.isDefault && !!sonarr.upgradeProfileId
       ),
       discoverRegion: this.data.main.discoverRegion,
       streamingRegion: this.data.main.streamingRegion,

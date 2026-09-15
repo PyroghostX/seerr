@@ -267,6 +267,40 @@ class RadarrAPI extends ServarrBase<{ movieId: number }> {
     }
   };
 
+  public async upgradeMovie(options: {
+    tmdbId: number;
+    qualityProfileId: number;
+    searchNow: boolean;
+  }): Promise<RadarrMovie> {
+    const movie = await this.getMovieByTmdbId(options.tmdbId);
+
+    if (!movie.id) {
+      throw new Error('Movie is not in Radarr, cannot upgrade');
+    }
+
+    const response = await this.axios.put<RadarrMovie>(`/movie/${movie.id}`, {
+      ...movie,
+      qualityProfileId: options.qualityProfileId,
+      monitored: true,
+    });
+
+    logger.info(
+      'Changed quality profile of existing movie in Radarr for upgrade.',
+      {
+        label: 'Radarr',
+        movieId: response.data.id,
+        movieTitle: response.data.title,
+        qualityProfileId: options.qualityProfileId,
+      }
+    );
+
+    if (options.searchNow) {
+      await this.searchMovie(response.data.id);
+    }
+
+    return response.data;
+  }
+
   public async searchMovie(movieId: number): Promise<void> {
     logger.info('Executing movie search command', {
       label: 'Radarr API',
