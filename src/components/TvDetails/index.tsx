@@ -686,6 +686,7 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
             media={data?.mediaInfo}
             isShowComplete={isComplete}
             is4kShowComplete={is4kComplete}
+            seasonResolutions={data?.seasonResolutions}
           />
           {(data.mediaInfo?.status === MediaStatus.AVAILABLE ||
             data.mediaInfo?.status === MediaStatus.PARTIALLY_AVAILABLE ||

@@ -1130,6 +1130,20 @@ components:
         id:
           type: number
           example: 123
+        currentQualityProfile:
+          type: string
+          nullable: true
+          description: Quality profile the series currently has in Sonarr (only when upgrade requests are enabled)
+        seasonResolutions:
+          type: array
+          nullable: true
+          items:
+            type: object
+            properties:
+              seasonNumber:
+                type: number
+              resolution:
+                type: number
         backdropPath:
           type: string
         posterPath:

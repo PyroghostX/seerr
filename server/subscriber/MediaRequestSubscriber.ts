@@ -609,6 +609,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
               tvdbid: tvdbIdForUpgrade,
               profileId: upgradeProfileId,
               searchNow: !sonarrSettings.preventSearch,
+              seasons: entity.seasons.map((season) => season.seasonNumber),
             });
             logger.info(
               'Upgrade request sent to Sonarr, marking request as COMPLETED',

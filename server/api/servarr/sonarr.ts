@@ -89,6 +89,25 @@ export interface SonarrSeries {
   };
 }
 
+export interface SonarrEpisodeFile {
+  id: number;
+  seriesId: number;
+  seasonNumber: number;
+  relativePath?: string;
+  size: number;
+  quality: {
+    quality: {
+      id: number;
+      name: string;
+      source?: string;
+      resolution?: number;
+    };
+  };
+  mediaInfo?: {
+    resolution?: string;
+  };
+}
+
 export interface AddSeriesOptions {
   tvdbid: number;
   title: string;
@@ -353,10 +372,28 @@ class SonarrAPI extends ServarrBase<{
     }
   }
 
+  public async getEpisodeFiles(seriesId: number): Promise<SonarrEpisodeFile[]> {
+    try {
+      const response = await this.axios.get<SonarrEpisodeFile[]>(
+        '/episodefile',
+        { params: { seriesId } }
+      );
+      return response.data;
+    } catch (e) {
+      throw new Error(
+        `[Sonarr] Failed to retrieve episode files: ${e.message}`,
+        {
+          cause: e,
+        }
+      );
+    }
+  }
+
   public async upgradeSeries(options: {
     tvdbid: number;
     profileId: number;
     searchNow: boolean;
+    seasons?: number[];
   }): Promise<SonarrSeries> {
     const series = await this.getSeriesByTvdbId(options.tvdbid);
 
@@ -385,7 +422,16 @@ class SonarrAPI extends ServarrBase<{
 
     if (options.searchNow) {
       try {
-        await this.runCommand('SeriesSearch', { seriesId: response.data.id });
+        if (options.seasons && options.seasons.length > 0) {
+          for (const seasonNumber of options.seasons) {
+            await this.runCommand('SeasonSearch', {
+              seriesId: response.data.id,
+              seasonNumber,
+            });
+          }
+        } else {
+          await this.runCommand('SeriesSearch', { seriesId: response.data.id });
+        }
       } catch (e) {
         logger.error(
           'Something went wrong while executing Sonarr series search.',

@@ -110,6 +110,10 @@ export interface TvDetails {
   externalIds: ExternalIds;
   keywords: Keyword[];
   mediaInfo?: Media;
+  /** Name of the quality profile the series currently has in Sonarr (upgrade requests enabled only) */
+  currentQualityProfile?: string;
+  /** Lowest vertical resolution of the files Sonarr holds for each season */
+  seasonResolutions?: { seasonNumber: number; resolution: number }[];
   watchProviders?: WatchProviders[];
   onUserWatchlist?: boolean;
 }

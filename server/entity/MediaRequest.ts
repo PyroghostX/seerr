@@ -615,7 +615,17 @@ export class MediaRequest {
 
     const upgradeProfileId = server.upgradeProfileId;
 
-    const duplicate = (media.requests ?? []).find(
+    const requestedSeasons = Array.isArray(requestBody.seasons)
+      ? requestBody.seasons.map(Number)
+      : [];
+
+    if (!isMovie && requestedSeasons.length === 0) {
+      throw new NoSeasonsAvailableError(
+        'Select at least one season to upgrade.'
+      );
+    }
+
+    const upgradeRequests = (media.requests ?? []).filter(
       (r) =>
         r.isUpgrade &&
         !r.is4k &&
@@ -623,10 +633,23 @@ export class MediaRequest {
         r.profileId === upgradeProfileId
     );
 
-    if (duplicate) {
+    if (isMovie && upgradeRequests.length > 0) {
       throw new DuplicateMediaRequestError(
         'An upgrade request for this title already exists.'
       );
+    }
+
+    if (!isMovie) {
+      const alreadyRequested = new Set(
+        upgradeRequests.flatMap((r) =>
+          (r.seasons ?? []).map((s) => s.seasonNumber)
+        )
+      );
+      if (requestedSeasons.every((sn) => alreadyRequested.has(sn))) {
+        throw new DuplicateMediaRequestError(
+          'An upgrade request for these seasons already exists.'
+        );
+      }
     }
 
     const autoApprove = user.hasPermission(
@@ -641,21 +664,20 @@ export class MediaRequest {
       ? MediaRequestStatus.APPROVED
       : MediaRequestStatus.PENDING;
 
+    const availableSeasonNumbers = new Set(
+      (media.seasons ?? [])
+        .filter(
+          (season) =>
+            season.status === MediaStatus.AVAILABLE ||
+            season.status === MediaStatus.PARTIALLY_AVAILABLE
+        )
+        .map((season) => season.seasonNumber)
+    );
     const seasons = isMovie
       ? []
-      : (media.seasons ?? [])
-          .filter(
-            (season) =>
-              season.status === MediaStatus.AVAILABLE ||
-              season.status === MediaStatus.PARTIALLY_AVAILABLE
-          )
-          .map(
-            (season) =>
-              new SeasonRequest({
-                seasonNumber: season.seasonNumber,
-                status,
-              })
-          );
+      : requestedSeasons
+          .filter((sn) => availableSeasonNumbers.has(sn))
+          .map((sn) => new SeasonRequest({ seasonNumber: sn, status }));
 
     if (!isMovie && seasons.length === 0) {
       throw new NoSeasonsAvailableError('No seasons available to upgrade');

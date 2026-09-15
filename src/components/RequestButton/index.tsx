@@ -28,7 +28,6 @@ const messages = defineMessages('components.RequestButton', {
   viewrequest4k: 'View 4K Request',
   requestmore: 'Request More',
   requestmore4k: 'Request More in 4K',
-  requestupgrade: 'Request Upgrade',
   upgradeto1080: 'Upgrade Quality to 1080',
   alreadyavailable1080: 'Already Available in 1080',
   upgraderequested1080: 'Upgrade to 1080 Requested',
@@ -63,6 +62,8 @@ interface RequestButtonProps {
   is4kShowComplete?: boolean;
   /** Vertical resolution of the file Radarr currently has (movies only) */
   currentResolution?: number;
+  /** Lowest resolution Sonarr holds per season (tv only) */
+  seasonResolutions?: { seasonNumber: number; resolution: number }[];
 }
 
 const RequestButton = ({
@@ -73,6 +74,7 @@ const RequestButton = ({
   isShowComplete = false,
   is4kShowComplete = false,
   currentResolution,
+  seasonResolutions,
 }: RequestButtonProps) => {
   const intl = useIntl();
   const settings = useSettings();
@@ -389,17 +391,66 @@ const RequestButton = ({
     (media.status === MediaStatus.AVAILABLE ||
       media.status === MediaStatus.PARTIALLY_AVAILABLE) &&
     upgradeEnabled &&
-    !existingUpgradeRequest &&
-    canRequestNon4k
+    canRequestNon4k &&
+    seasonResolutions !== undefined
   ) {
-    buttons.push({
-      id: 'request-upgrade',
-      text: intl.formatMessage(messages.requestupgrade),
-      action: () => {
-        setShowUpgradeModal(true);
-      },
-      svg: <ArrowUpCircleIcon />,
-    });
+    // TV: seasons below 1080p that do not already have an open upgrade request
+    const requestedSeasons = new Set(
+      (media.requests ?? [])
+        .filter(
+          (request) =>
+            request.isUpgrade &&
+            !request.is4k &&
+            request.status !== MediaRequestStatus.DECLINED
+        )
+        .flatMap((request) => request.seasons.map((s) => s.seasonNumber))
+    );
+    const availableSeasons = new Set(
+      (media.seasons ?? [])
+        .filter(
+          (season) =>
+            season.status === MediaStatus.AVAILABLE ||
+            season.status === MediaStatus.PARTIALLY_AVAILABLE
+        )
+        .map((season) => season.seasonNumber)
+    );
+    const known = seasonResolutions.filter((s) =>
+      availableSeasons.has(s.seasonNumber)
+    );
+    const upgradeable = known.filter((s) => s.resolution < 1080);
+    const pending = upgradeable.filter((s) =>
+      requestedSeasons.has(s.seasonNumber)
+    );
+
+    if (known.length > 0 && upgradeable.length === 0) {
+      buttons.push({
+        id: 'upgrade-already-1080',
+        text: intl.formatMessage(messages.alreadyavailable1080),
+        action: () => undefined,
+        svg: <CheckIcon />,
+        disabled: true,
+      });
+    } else if (
+      upgradeable.length > 0 &&
+      pending.length === upgradeable.length
+    ) {
+      buttons.push({
+        id: 'upgrade-requested',
+        text: intl.formatMessage(messages.upgraderequested1080),
+        action: () => undefined,
+        svg: <ArrowUpCircleIcon />,
+        disabled: true,
+      });
+    } else if (upgradeable.length > 0) {
+      buttons.push({
+        id: 'request-upgrade',
+        text: intl.formatMessage(messages.upgradeto1080),
+        action: () => {
+          setShowUpgradeModal(true);
+        },
+        svg: <ArrowUpCircleIcon />,
+      });
+    }
   }
 
   // 4K request button

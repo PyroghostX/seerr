@@ -1,12 +1,14 @@
 import { getMetadataProvider } from '@server/api/metadata';
 import RottenTomatoes from '@server/api/rating/rottentomatoes';
+import SonarrAPI from '@server/api/servarr/sonarr';
 import TheMovieDb from '@server/api/themoviedb';
 import { ANIME_KEYWORD_ID } from '@server/api/themoviedb/constants';
 import type { TmdbKeyword } from '@server/api/themoviedb/interfaces';
-import { MediaType } from '@server/constants/media';
+import { MediaStatus, MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
 import { Watchlist } from '@server/entity/Watchlist';
+import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { mapTvResult } from '@server/models/Search';
 import { mapSeasonWithEpisodes, mapTvDetails } from '@server/models/Tv';
@@ -43,6 +45,66 @@ tvRoutes.get('/:id', async (req, res, next) => {
     });
 
     const data = mapTvDetails(tv, media, onUserWatchlist);
+
+    // When upgrade requests are enabled, report Sonarr's current quality profile
+    // and the lowest resolution held per season so the UI can offer season upgrades.
+    if (
+      media &&
+      (media.status === MediaStatus.AVAILABLE ||
+        media.status === MediaStatus.PARTIALLY_AVAILABLE)
+    ) {
+      const sonarrSettings = getSettings().sonarr.find(
+        (s) => !s.is4k && s.isDefault && s.upgradeProfileId
+      );
+      const tvdbId = data.externalIds?.tvdbId ?? media.tvdbId;
+      if (sonarrSettings && tvdbId) {
+        try {
+          const sonarr = new SonarrAPI({
+            apiKey: sonarrSettings.apiKey,
+            url: SonarrAPI.buildUrl(sonarrSettings, '/api/v3'),
+          });
+          const [series] = await sonarr.getLibrarySeriesByTvdbId(tvdbId);
+          if (series?.id) {
+            const [profiles, files] = await Promise.all([
+              sonarr.getProfiles(),
+              sonarr.getEpisodeFiles(series.id),
+            ]);
+            data.currentQualityProfile = profiles.find(
+              (p) => p.id === series.qualityProfileId
+            )?.name;
+            const lowest = new Map<number, number>();
+            for (const file of files) {
+              let resolution = file.quality?.quality?.resolution;
+              if (!resolution && file.mediaInfo?.resolution) {
+                const height = Number(file.mediaInfo.resolution.split('x')[1]);
+                if (height) {
+                  resolution = height;
+                }
+              }
+              if (!resolution) {
+                continue;
+              }
+              const current = lowest.get(file.seasonNumber);
+              if (current === undefined || resolution < current) {
+                lowest.set(file.seasonNumber, resolution);
+              }
+            }
+            data.seasonResolutions = [...lowest.entries()]
+              .map(([seasonNumber, resolution]) => ({
+                seasonNumber,
+                resolution,
+              }))
+              .sort((a, b) => a.seasonNumber - b.seasonNumber);
+          }
+        } catch (e) {
+          logger.debug('Could not read current season quality from Sonarr', {
+            label: 'API',
+            errorMessage: e.message,
+            tvId: req.params.id,
+          });
+        }
+      }
+    }
 
     // TMDB issue where it doesnt fallback to English when no overview is available in requested locale.
     if (!data.overview) {
