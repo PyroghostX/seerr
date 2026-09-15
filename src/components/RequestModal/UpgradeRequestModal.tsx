@@ -17,6 +17,11 @@ const messages = defineMessages('components.RequestModal.UpgradeRequestModal', {
   upgradeexplainer:
     'This title is already available. An upgrade request will have the system upgrade this from 720p to 1080p quality',
   whichseasons: 'Which seasons to upgrade to 1080p?',
+  seasonnumber: 'Season {number}',
+  futureseasons: 'Future seasons',
+  futureseasonsTip:
+    'Switch the show to the 1080p profile so any new seasons download in 1080p. Seasons you do not select stay as they are.',
+  upgradefuture: 'Upgrade Future Seasons',
   currentprofile: 'Current quality profile: {profile}',
   seasoncurrent: 'currently {resolution}p',
   seasonunknown: 'no file information',
@@ -50,6 +55,7 @@ const UpgradeRequestModal = ({
   const { addToast } = useToasts();
   const [isUpdating, setIsUpdating] = useState(false);
   const [selectedSeasons, setSelectedSeasons] = useState<number[]>([]);
+  const [futureSeasons, setFutureSeasons] = useState(false);
   const { data, error } = useSWR<MovieDetails | TvDetails>(
     `/api/v1/${type}/${tmdbId}`,
     { revalidateOnMount: true }
@@ -94,9 +100,9 @@ const UpgradeRequestModal = ({
       )
       .map((season) => {
         const resolution = resolutions.get(season.seasonNumber);
-        const name =
-          tv.seasons.find((s) => s.seasonNumber === season.seasonNumber)
-            ?.name ?? `Season ${season.seasonNumber}`;
+        const name = intl.formatMessage(messages.seasonnumber, {
+          number: season.seasonNumber,
+        });
         let note: string;
         let selectable = false;
         if (requested.has(season.seasonNumber)) {
@@ -136,6 +142,7 @@ const UpgradeRequestModal = ({
           type === 'tv'
             ? [...selectedSeasons].sort((a, b) => a - b)
             : undefined,
+        upgradeFutureSeasons: type === 'tv' ? futureSeasons : undefined,
       });
       mutate('/api/v1/request?filter=all&take=10&sort=modified&skip=0');
       mutate('/api/v1/request/count');
@@ -166,13 +173,24 @@ const UpgradeRequestModal = ({
     } finally {
       setIsUpdating(false);
     }
-  }, [data, type, title, selectedSeasons, onComplete, addToast, intl]);
+  }, [
+    data,
+    type,
+    title,
+    selectedSeasons,
+    futureSeasons,
+    onComplete,
+    addToast,
+    intl,
+  ]);
 
   const okText = isUpdating
     ? intl.formatMessage(globalMessages.requesting)
     : type === 'tv'
       ? selectedSeasons.length === 0
-        ? intl.formatMessage(messages.selectseason)
+        ? futureSeasons
+          ? intl.formatMessage(messages.upgradefuture)
+          : intl.formatMessage(messages.selectseason)
         : intl.formatMessage(messages.upgradeseasons, {
             seasonCount: selectedSeasons.length,
           })
@@ -185,7 +203,9 @@ const UpgradeRequestModal = ({
       onCancel={onCancel}
       onOk={sendRequest}
       okDisabled={
-        isUpdating || !data || (type === 'tv' && selectedSeasons.length === 0)
+        isUpdating ||
+        !data ||
+        (type === 'tv' && selectedSeasons.length === 0 && !futureSeasons)
       }
       title={intl.formatMessage(messages.upgradetitle)}
       subTitle={title}
@@ -236,7 +256,24 @@ const UpgradeRequestModal = ({
                 </span>
               </label>
             ))}
+            <label
+              key="upgrade-future-seasons"
+              className="flex cursor-pointer items-center justify-between border-t border-gray-700 px-4 py-2 text-sm text-gray-100 hover:bg-gray-700"
+            >
+              <span className="flex items-center">
+                <input
+                  type="checkbox"
+                  className="mr-3 h-4 w-4 rounded border-gray-600 bg-gray-800 text-indigo-600"
+                  checked={futureSeasons}
+                  onChange={() => setFutureSeasons((v) => !v)}
+                />
+                {intl.formatMessage(messages.futureseasons)}
+              </span>
+            </label>
           </div>
+          <p className="mt-2 text-xs text-gray-400">
+            {intl.formatMessage(messages.futureseasonsTip)}
+          </p>
         </div>
       )}
     </Modal>

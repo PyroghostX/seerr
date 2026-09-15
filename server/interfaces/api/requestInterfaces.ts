@@ -28,4 +28,5 @@ export type MediaRequestBody = {
   tags?: number[];
   ignoreQuota?: boolean;
   isUpgrade?: boolean;
+  upgradeFutureSeasons?: boolean;
 };

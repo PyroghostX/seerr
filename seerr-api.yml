@@ -1322,6 +1322,10 @@ components:
           type: boolean
           example: false
           description: If true, this is a quality-upgrade request for media that is already available.
+        upgradeFutureSeasons:
+          type: boolean
+          example: false
+          description: TV upgrade requests only. If true, new seasons are monitored on the upgrade profile.
       required:
         - id
         - status
@@ -6664,6 +6668,10 @@ paths:
                   type: boolean
                   example: false
                   description: Request a quality upgrade for media that is already available. Uses the default server's upgrade quality profile.
+                upgradeFutureSeasons:
+                  type: boolean
+                  example: false
+                  description: TV upgrade requests only. Also monitor future seasons on the upgrade profile.
               required:
                 - mediaType
                 - mediaId

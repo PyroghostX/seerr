@@ -394,6 +394,7 @@ class SonarrAPI extends ServarrBase<{
     profileId: number;
     searchNow: boolean;
     seasons?: number[];
+    futureSeasons?: boolean;
   }): Promise<SonarrSeries> {
     const series = await this.getSeriesByTvdbId(options.tvdbid);
 
@@ -401,12 +402,23 @@ class SonarrAPI extends ServarrBase<{
       throw new Error('Series is not in Sonarr, cannot upgrade');
     }
 
+    // The quality profile is series-wide, so seasons that were not chosen are
+    // unmonitored to keep Sonarr from upgrading them too. Specials are left alone.
+    const chosen = new Set(options.seasons ?? []);
+    const seasons = series.seasons.map((season) =>
+      season.seasonNumber === 0
+        ? season
+        : { ...season, monitored: chosen.has(season.seasonNumber) }
+    );
+
     const response = await this.axios.put<SonarrSeries>(
       `/series/${series.id}`,
       {
         ...series,
+        seasons,
         qualityProfileId: options.profileId,
         monitored: true,
+        ...(options.futureSeasons ? { monitorNewItems: 'all' } : {}),
       }
     );
 
@@ -417,6 +429,8 @@ class SonarrAPI extends ServarrBase<{
         seriesId: response.data.id,
         seriesTitle: response.data.title,
         qualityProfileId: options.profileId,
+        monitoredSeasons: [...chosen],
+        futureSeasons: !!options.futureSeasons,
       }
     );
 

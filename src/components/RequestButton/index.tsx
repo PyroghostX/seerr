@@ -1,3 +1,4 @@
+import Button from '@app/components/Common/Button';
 import ButtonWithDropdown from '@app/components/Common/ButtonWithDropdown';
 import RequestModal from '@app/components/RequestModal';
 import UpgradeRequestModal from '@app/components/RequestModal/UpgradeRequestModal';
@@ -26,7 +27,7 @@ import { mutate } from 'swr';
 const messages = defineMessages('components.RequestButton', {
   viewrequest: 'View Request',
   viewrequest4k: 'View 4K Request',
-  requestmore: 'Request More',
+  requestmore: 'Request More Episodes',
   requestmore4k: 'Request More in 4K',
   upgradeto1080: 'Upgrade Quality to 1080',
   alreadyavailable1080: 'Already Available in 1080',
@@ -341,7 +342,9 @@ const RequestButton = ({
     });
   }
 
-  // Upgrade request button (media already available in the non-4K library)
+  // Upgrade request button (media already available in the non-4K library).
+  // Rendered as its own button next to the request dropdown.
+  let upgradeButton: ButtonOption | undefined;
   const canRequestNon4k = hasPermission(
     [
       Permission.REQUEST,
@@ -360,30 +363,30 @@ const RequestButton = ({
       currentResolution !== undefined
     ) {
       if (currentResolution >= 1080) {
-        buttons.push({
+        upgradeButton = {
           id: 'upgrade-already-1080',
           text: intl.formatMessage(messages.alreadyavailable1080),
           action: () => undefined,
           svg: <CheckIcon />,
           disabled: true,
-        });
+        };
       } else if (existingUpgradeRequest) {
-        buttons.push({
+        upgradeButton = {
           id: 'upgrade-requested',
           text: intl.formatMessage(messages.upgraderequested1080),
           action: () => undefined,
           svg: <ArrowUpCircleIcon />,
           disabled: true,
-        });
+        };
       } else {
-        buttons.push({
+        upgradeButton = {
           id: 'request-upgrade',
           text: intl.formatMessage(messages.upgradeto1080),
           action: () => {
             setShowUpgradeModal(true);
           },
           svg: <ArrowUpCircleIcon />,
-        });
+        };
       }
     }
   } else if (
@@ -423,33 +426,33 @@ const RequestButton = ({
     );
 
     if (known.length > 0 && upgradeable.length === 0) {
-      buttons.push({
+      upgradeButton = {
         id: 'upgrade-already-1080',
         text: intl.formatMessage(messages.alreadyavailable1080),
         action: () => undefined,
         svg: <CheckIcon />,
         disabled: true,
-      });
+      };
     } else if (
       upgradeable.length > 0 &&
       pending.length === upgradeable.length
     ) {
-      buttons.push({
+      upgradeButton = {
         id: 'upgrade-requested',
         text: intl.formatMessage(messages.upgraderequested1080),
         action: () => undefined,
         svg: <ArrowUpCircleIcon />,
         disabled: true,
-      });
+      };
     } else if (upgradeable.length > 0) {
-      buttons.push({
+      upgradeButton = {
         id: 'request-upgrade',
         text: intl.formatMessage(messages.upgradeto1080),
         action: () => {
           setShowUpgradeModal(true);
         },
         svg: <ArrowUpCircleIcon />,
-      });
+      };
     }
   }
 
@@ -503,7 +506,7 @@ const RequestButton = ({
 
   const [buttonOne, ...others] = buttons;
 
-  if (!buttonOne) {
+  if (!buttonOne && !upgradeButton) {
     return null;
   }
 
@@ -552,36 +555,51 @@ const RequestButton = ({
           onCancel={() => setShowUpgradeModal(false)}
         />
       </Transition>
-      <ButtonWithDropdown
-        text={
-          <>
-            {buttonOne.svg}
-            <span>{buttonOne.text}</span>
-          </>
-        }
-        onClick={buttonOne.disabled ? undefined : buttonOne.action}
-        disabled={buttonOne.disabled}
-        className={`ml-2 ${
-          buttonOne.disabled ? 'cursor-not-allowed opacity-60' : ''
-        }`}
-      >
-        {others && others.length > 0
-          ? others.map((button) => (
-              <ButtonWithDropdown.Item
-                onClick={button.disabled ? undefined : button.action}
-                style={
-                  button.disabled
-                    ? { opacity: 0.6, cursor: 'not-allowed' }
-                    : undefined
-                }
-                key={`request-option-${button.id}`}
-              >
-                {button.svg}
-                <span>{button.text}</span>
-              </ButtonWithDropdown.Item>
-            ))
-          : null}
-      </ButtonWithDropdown>
+      {buttonOne && (
+        <ButtonWithDropdown
+          text={
+            <>
+              {buttonOne.svg}
+              <span>{buttonOne.text}</span>
+            </>
+          }
+          onClick={buttonOne.disabled ? undefined : buttonOne.action}
+          disabled={buttonOne.disabled}
+          className={`ml-2 ${
+            buttonOne.disabled ? 'cursor-not-allowed opacity-60' : ''
+          }`}
+        >
+          {others && others.length > 0
+            ? others.map((button) => (
+                <ButtonWithDropdown.Item
+                  onClick={button.disabled ? undefined : button.action}
+                  style={
+                    button.disabled
+                      ? { opacity: 0.6, cursor: 'not-allowed' }
+                      : undefined
+                  }
+                  key={`request-option-${button.id}`}
+                >
+                  {button.svg}
+                  <span>{button.text}</span>
+                </ButtonWithDropdown.Item>
+              ))
+            : null}
+        </ButtonWithDropdown>
+      )}
+      {upgradeButton && (
+        <Button
+          buttonType="primary"
+          className={`ml-2 ${
+            upgradeButton.disabled ? 'cursor-not-allowed opacity-60' : ''
+          }`}
+          disabled={upgradeButton.disabled}
+          onClick={upgradeButton.disabled ? undefined : upgradeButton.action}
+        >
+          {upgradeButton.svg}
+          <span>{upgradeButton.text}</span>
+        </Button>
+      )}
     </>
   );
 };

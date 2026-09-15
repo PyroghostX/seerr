@@ -618,8 +618,9 @@ export class MediaRequest {
     const requestedSeasons = Array.isArray(requestBody.seasons)
       ? requestBody.seasons.map(Number)
       : [];
+    const upgradeFutureSeasons = !isMovie && !!requestBody.upgradeFutureSeasons;
 
-    if (!isMovie && requestedSeasons.length === 0) {
+    if (!isMovie && requestedSeasons.length === 0 && !upgradeFutureSeasons) {
       throw new NoSeasonsAvailableError(
         'Select at least one season to upgrade.'
       );
@@ -645,7 +646,10 @@ export class MediaRequest {
           (r.seasons ?? []).map((s) => s.seasonNumber)
         )
       );
-      if (requestedSeasons.every((sn) => alreadyRequested.has(sn))) {
+      if (
+        requestedSeasons.length > 0 &&
+        requestedSeasons.every((sn) => alreadyRequested.has(sn))
+      ) {
         throw new DuplicateMediaRequestError(
           'An upgrade request for these seasons already exists.'
         );
@@ -679,7 +683,7 @@ export class MediaRequest {
           .filter((sn) => availableSeasonNumbers.has(sn))
           .map((sn) => new SeasonRequest({ seasonNumber: sn, status }));
 
-    if (!isMovie && seasons.length === 0) {
+    if (!isMovie && seasons.length === 0 && !upgradeFutureSeasons) {
       throw new NoSeasonsAvailableError('No seasons available to upgrade');
     }
 
@@ -693,6 +697,7 @@ export class MediaRequest {
       serverId: server.id,
       profileId: upgradeProfileId,
       isUpgrade: true,
+      upgradeFutureSeasons,
       isAutoRequest: false,
       ignoreQuota: true,
       seasons,
@@ -806,6 +811,9 @@ export class MediaRequest {
 
   @Column({ default: false })
   public isUpgrade: boolean;
+
+  @Column({ default: false })
+  public upgradeFutureSeasons: boolean;
 
   constructor(init?: Partial<MediaRequest>) {
     Object.assign(this, init);

@@ -1,4 +1,3 @@
-import Alert from '@app/components/Common/Alert';
 import Badge from '@app/components/Common/Badge';
 import Modal from '@app/components/Common/Modal';
 import type { RequestOverrides } from '@app/components/RequestModal/AdvancedRequester';
@@ -471,28 +470,6 @@ const TvRequestModal = ({
               username: editRequest?.requestedBy.displayName,
             })
         : null}
-      {hasPermission(
-        [
-          Permission.MANAGE_REQUESTS,
-          is4k ? Permission.AUTO_APPROVE_4K : Permission.AUTO_APPROVE,
-          is4k ? Permission.AUTO_APPROVE_4K_TV : Permission.AUTO_APPROVE_TV,
-        ],
-        { type: 'or' }
-      ) &&
-        !(
-          quota?.tv.limit &&
-          !settings.currentSettings.partialRequestsEnabled &&
-          unrequestedSeasons.length > (quota?.tv.remaining ?? 0)
-        ) &&
-        getAllRequestedSeasons().length < getAllSeasons().length &&
-        !editRequest && (
-          <div className="mt-6">
-            <Alert
-              title={intl.formatMessage(messages.requestadmin)}
-              type="info"
-            />
-          </div>
-        )}
       {(quota?.tv.limit ?? 0) > 0 && (
         <QuotaDisplay
           mediaType="tv"
