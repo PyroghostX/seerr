@@ -7,7 +7,7 @@ const messages = defineMessages('components.RequestModal.RequestInfoPanel', {
   movieinfo:
     'This will request the system to go add this to Plex, most movies are added within 5-10 minutes. Sometimes things take a day. If you are in a rush for it msg Christopher and he might be able to speed it up',
   tvinfo:
-    'This will request the system to go add this to Plex, most episodes are added within 5-10 minutes. Sometimes things take a day. If you are in a rush for it msg Christopher and he might be able to speed it up',
+    'This will request the system to go add this to Plex, depending on how many seasons you selected most tv shows are added within 30 minutes. Sometimes things take a day. If you are in a rush for it msg Christopher and he might be able to speed it up',
   minutes: '{minutes} min',
 });
 
