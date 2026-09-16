@@ -22,6 +22,7 @@ const messages = defineMessages('components.Settings.OverrideRuleTile', {
   rootfolder: 'Root Folder',
   tags: 'Tags',
   users: 'Users',
+  allusers: 'All users',
   genre: 'Genre',
   language: 'Language',
   keywords: 'Keywords',
@@ -147,6 +148,14 @@ const OverrideRuleTiles = ({
               <span className="text-lg">
                 {intl.formatMessage(messages.conditions)}
               </span>
+              {!rule.users && (
+                <p className="truncate text-sm leading-5 text-gray-300">
+                  <span className="mr-2 font-bold">
+                    {intl.formatMessage(messages.users)}
+                  </span>
+                  <span>{intl.formatMessage(messages.allusers)}</span>
+                </p>
+              )}
               {rule.users && (
                 <p className="truncate text-sm leading-5 text-gray-300">
                   <span className="mr-2 font-bold">

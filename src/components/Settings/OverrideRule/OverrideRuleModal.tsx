@@ -33,6 +33,7 @@ const messages = defineMessages('components.Settings.OverrideRuleModal', {
   settingsDescription:
     'Specifies which settings will be changed when the above conditions are met.',
   users: 'Users',
+  usersTip: 'Leave empty to apply to all users',
   genres: 'Genres',
   languages: 'Languages',
   keywords: 'Keywords',
@@ -318,6 +319,9 @@ const OverrideRuleModal = ({
                 <div className="form-row">
                   <label htmlFor="users" className="text-label">
                     {intl.formatMessage(messages.users)}
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.usersTip)}
+                    </span>
                   </label>
                   <div className="form-input-area">
                     <div className="form-input-field">
