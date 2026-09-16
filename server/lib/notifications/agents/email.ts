@@ -17,7 +17,7 @@ import type { NotificationAgent, NotificationPayload } from './agent';
 import { BaseAgent } from './agent';
 
 const PUBLIC_LOGO_URL =
-  'https://raw.githubusercontent.com/seerr-team/seerr/refs/heads/develop/public/logo_full.svg';
+  'https://raw.githubusercontent.com/PyroghostX/seerr/feature/upgrade-requests/public/logo_full.png';
 
 const messages = defineMessages('notifications.agents.email', {
   issueType: '{type} issue',
@@ -103,7 +103,7 @@ class EmailAgent
     const logoUrl = usePublicLogo
       ? PUBLIC_LOGO_URL
       : applicationUrl
-        ? `${applicationUrl}/logo_full.svg`
+        ? `${applicationUrl}/logo_full.png`
         : undefined;
 
     if (type === Notification.TEST_NOTIFICATION) {
