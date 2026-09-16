@@ -3,6 +3,7 @@ import Modal from '@app/components/Common/Modal';
 import type { RequestOverrides } from '@app/components/RequestModal/AdvancedRequester';
 import AdvancedRequester from '@app/components/RequestModal/AdvancedRequester';
 import QuotaDisplay from '@app/components/RequestModal/QuotaDisplay';
+import RequestInfoPanel from '@app/components/RequestModal/RequestInfoPanel';
 import SearchByNameModal from '@app/components/RequestModal/SearchByNameModal';
 import useSettings from '@app/hooks/useSettings';
 import useToasts from '@app/hooks/useToasts';
@@ -470,6 +471,16 @@ const TvRequestModal = ({
               username: editRequest?.requestedBy.displayName,
             })
         : null}
+      {!editRequest && (
+        <RequestInfoPanel
+          type="tv"
+          title={data?.name}
+          year={data?.firstAirDate?.slice(0, 4)}
+          posterPath={data?.posterPath}
+          runtime={data?.episodeRunTime?.[0]}
+          overview={data?.overview}
+        />
+      )}
       {(quota?.tv.limit ?? 0) > 0 && (
         <QuotaDisplay
           mediaType="tv"

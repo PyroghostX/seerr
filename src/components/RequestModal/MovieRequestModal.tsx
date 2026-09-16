@@ -2,6 +2,7 @@ import Modal from '@app/components/Common/Modal';
 import type { RequestOverrides } from '@app/components/RequestModal/AdvancedRequester';
 import AdvancedRequester from '@app/components/RequestModal/AdvancedRequester';
 import QuotaDisplay from '@app/components/RequestModal/QuotaDisplay';
+import RequestInfoPanel from '@app/components/RequestModal/RequestInfoPanel';
 import useToasts from '@app/hooks/useToasts';
 import { useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
@@ -329,6 +330,14 @@ const MovieRequestModal = ({
       okButtonType={'primary'}
       backdrop={`https://image.tmdb.org/t/p/w1920_and_h800_multi_faces/${data?.backdropPath}`}
     >
+      <RequestInfoPanel
+        type="movie"
+        title={data?.title}
+        year={data?.releaseDate?.slice(0, 4)}
+        posterPath={data?.posterPath}
+        runtime={data?.runtime}
+        overview={data?.overview}
+      />
       {(quota?.movie.limit ?? 0) > 0 && (
         <QuotaDisplay
           mediaType="movie"
