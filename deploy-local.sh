@@ -6,6 +6,6 @@ cd "$(dirname "$0")"
 TAG=$(git rev-parse --short HEAD)-upgrade
 docker build -q -t seerr-fork:upgrade --build-arg COMMIT_TAG="$TAG" .
 docker rm -f seerr-seerr-1 >/dev/null 2>&1 || true
-docker compose up -d seerr
+docker compose -f /home/kirby/Documents/docker-compose.yml --project-directory /home/kirby/Documents up -d seerr
 timeout 90 bash -c 'until curl -sf http://localhost:5055/api/v1/status >/dev/null; do sleep 3; done'
 curl -s http://localhost:5055/api/v1/status; echo
