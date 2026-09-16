@@ -1,0 +1,11 @@
+#!/bin/bash
+# Build the fork image and redeploy the `seerr` service from ~/Documents/docker-compose.yml.
+# (Never run `docker compose` inside this repo: its own compose.yaml would start a second container.)
+set -e
+cd "$(dirname "$0")"
+TAG=$(git rev-parse --short HEAD)-upgrade
+docker build -q -t seerr-fork:upgrade --build-arg COMMIT_TAG="$TAG" .
+docker rm -f seerr-seerr-1 >/dev/null 2>&1 || true
+docker compose up -d seerr
+timeout 90 bash -c 'until curl -sf http://localhost:5055/api/v1/status >/dev/null; do sleep 3; done'
+curl -s http://localhost:5055/api/v1/status; echo
