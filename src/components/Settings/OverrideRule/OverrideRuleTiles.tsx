@@ -26,7 +26,7 @@ const messages = defineMessages('components.Settings.OverrideRuleTile', {
   genre: 'Genre',
   language: 'Language',
   keywords: 'Keywords',
-  releasedBefore: 'Released before',
+  releasedBefore: 'Released in/before',
   conditions: 'Conditions',
   settings: 'Settings',
 });

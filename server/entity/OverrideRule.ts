@@ -29,7 +29,7 @@ class OverrideRule {
   @Column({ nullable: true })
   public keywords?: string;
 
-  /** Only apply to titles released before this year (e.g. 2010) */
+  /** Only apply to titles released in or before this year (e.g. 2010 matches 2010 and earlier) */
   @Column({ type: 'int', nullable: true })
   public releasedBefore?: number;
 

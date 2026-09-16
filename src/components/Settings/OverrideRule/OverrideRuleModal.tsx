@@ -37,9 +37,7 @@ const messages = defineMessages('components.Settings.OverrideRuleModal', {
   genres: 'Genres',
   languages: 'Languages',
   keywords: 'Keywords',
-  releasedBefore: 'Released before year',
-  releasedBeforeTip:
-    'Only titles released before this year (e.g. 2010 matches 2009 and earlier)',
+  releasedBefore: 'Released In/Before year',
   rootfolder: 'Root Folder',
   selectRootFolder: 'Select root folder',
   qualityprofile: 'Quality Profile',
@@ -171,7 +169,8 @@ const OverrideRuleModal = ({
               genre: values.genre || null,
               language: values.language || null,
               keywords: values.keywords || null,
-              releasedBefore: Number(values.releasedBefore) || null,
+              releasedBefore:
+                Number(String(values.releasedBefore).trim()) || null,
               profileId: Number(values.profileId) || null,
               rootFolder: values.rootFolder || null,
               tags: values.tags || null,
@@ -426,21 +425,15 @@ const OverrideRuleModal = ({
                 <div className="form-row">
                   <label htmlFor="releasedBefore" className="text-label">
                     {intl.formatMessage(messages.releasedBefore)}
-                    <span className="label-tip">
-                      {intl.formatMessage(messages.releasedBeforeTip)}
-                    </span>
                   </label>
                   <div className="form-input-area">
                     <div className="form-input-field">
                       <Field
-                        type="number"
+                        type="text"
+                        inputMode="numeric"
                         id="releasedBefore"
                         name="releasedBefore"
-                        min="1900"
-                        max="2100"
-                        step="1"
                         placeholder="2010"
-                        disabled={!isValidated || isTesting}
                       />
                     </div>
                   </div>

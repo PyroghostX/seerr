@@ -362,7 +362,7 @@ export class MediaRequest {
               ? tmdbMedia.release_date
               : tmdbMedia.first_air_date;
           const releaseYear = Number((releaseDate ?? '').slice(0, 4));
-          if (!releaseYear || releaseYear >= rule.releasedBefore) {
+          if (!releaseYear || releaseYear > rule.releasedBefore) {
             return false;
           }
         }
