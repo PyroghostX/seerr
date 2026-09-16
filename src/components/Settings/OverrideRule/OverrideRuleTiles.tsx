@@ -25,6 +25,7 @@ const messages = defineMessages('components.Settings.OverrideRuleTile', {
   genre: 'Genre',
   language: 'Language',
   keywords: 'Keywords',
+  releasedBefore: 'Released before',
   conditions: 'Conditions',
   settings: 'Settings',
 });
@@ -221,6 +222,14 @@ const OverrideRuleTiles = ({
                       );
                     })}
                   </div>
+                </p>
+              )}
+              {rule.releasedBefore && (
+                <p className="truncate text-sm leading-5 text-gray-300">
+                  <span className="mr-2 font-bold">
+                    {intl.formatMessage(messages.releasedBefore)}
+                  </span>
+                  <span>{rule.releasedBefore}</span>
                 </p>
               )}
               <span className="text-lg">

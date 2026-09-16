@@ -1,5 +1,4 @@
 import Badge from '@app/components/Common/Badge';
-import VersionStatus from '@app/components/Layout/VersionStatus';
 import useClickOutside from '@app/hooks/useClickOutside';
 import { Permission, useUser } from '@app/hooks/useUser';
 import defineMessages from '@app/utils/defineMessages';
@@ -232,11 +231,6 @@ const Sidebar = ({
                         );
                       })}
                     </nav>
-                    {hasPermission(Permission.ADMIN) && (
-                      <div className="px-2">
-                        <VersionStatus onClick={() => setClosed()} />
-                      </div>
-                    )}
                   </div>
                 </div>
                 <div className="w-14 flex-shrink-0">
@@ -322,11 +316,6 @@ const Sidebar = ({
                   );
                 })}
               </nav>
-              {hasPermission(Permission.ADMIN) && (
-                <div className="px-2">
-                  <VersionStatus />
-                </div>
-              )}
             </div>
           </div>
         </div>

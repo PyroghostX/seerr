@@ -36,6 +36,9 @@ const messages = defineMessages('components.Settings.OverrideRuleModal', {
   genres: 'Genres',
   languages: 'Languages',
   keywords: 'Keywords',
+  releasedBefore: 'Released before year',
+  releasedBeforeTip:
+    'Only titles released before this year (e.g. 2010 matches 2009 and earlier)',
   rootfolder: 'Root Folder',
   selectRootFolder: 'Select root folder',
   qualityprofile: 'Quality Profile',
@@ -155,6 +158,7 @@ const OverrideRuleModal = ({
           genre: rule?.genre,
           language: rule?.language,
           keywords: rule?.keywords,
+          releasedBefore: rule?.releasedBefore ?? '',
           profileId: rule?.profileId,
           rootFolder: rule?.rootFolder,
           tags: rule?.tags,
@@ -166,6 +170,7 @@ const OverrideRuleModal = ({
               genre: values.genre || null,
               language: values.language || null,
               keywords: values.keywords || null,
+              releasedBefore: Number(values.releasedBefore) || null,
               profileId: Number(values.profileId) || null,
               rootFolder: values.rootFolder || null,
               tags: values.tags || null,
@@ -217,7 +222,8 @@ const OverrideRuleModal = ({
                 (!values.users &&
                   !values.genre &&
                   !values.language &&
-                  !values.keywords) ||
+                  !values.keywords &&
+                  !values.releasedBefore) ||
                 (!values.rootFolder && !values.profileId && !values.tags)
               }
               onOk={() => handleSubmit()}
@@ -411,6 +417,28 @@ const OverrideRuleModal = ({
                       typeof errors.keywords === 'string' && (
                         <div className="error">{errors.keywords}</div>
                       )}
+                  </div>
+                </div>
+                <div className="form-row">
+                  <label htmlFor="releasedBefore" className="text-label">
+                    {intl.formatMessage(messages.releasedBefore)}
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.releasedBeforeTip)}
+                    </span>
+                  </label>
+                  <div className="form-input-area">
+                    <div className="form-input-field">
+                      <Field
+                        type="number"
+                        id="releasedBefore"
+                        name="releasedBefore"
+                        min="1900"
+                        max="2100"
+                        step="1"
+                        placeholder="2010"
+                        disabled={!isValidated || isTesting}
+                      />
+                    </div>
                   </div>
                 </div>
                 <h3 className="mt-4 text-lg font-bold leading-8 text-gray-100">

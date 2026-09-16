@@ -31,6 +31,7 @@ overrideRuleRoutes.post<
     genre?: string;
     language?: string;
     keywords?: string;
+    releasedBefore?: number;
     profileId?: number;
     rootFolder?: string;
     tags?: string;
@@ -46,6 +47,7 @@ overrideRuleRoutes.post<
       genre: req.body.genre,
       language: req.body.language,
       keywords: req.body.keywords,
+      releasedBefore: req.body.releasedBefore,
       profileId: req.body.profileId,
       rootFolder: req.body.rootFolder,
       tags: req.body.tags,
@@ -69,6 +71,7 @@ overrideRuleRoutes.put<
     genre?: string;
     language?: string;
     keywords?: string;
+    releasedBefore?: number;
     profileId?: number;
     rootFolder?: string;
     tags?: string;
@@ -93,6 +96,7 @@ overrideRuleRoutes.put<
     rule.genre = req.body.genre;
     rule.language = req.body.language;
     rule.keywords = req.body.keywords;
+    rule.releasedBefore = req.body.releasedBefore;
     rule.profileId = req.body.profileId;
     rule.rootFolder = req.body.rootFolder;
     rule.tags = req.body.tags;

@@ -2,7 +2,7 @@ interface PWAHeaderProps {
   applicationTitle?: string;
 }
 
-const PWAHeader = ({ applicationTitle = 'Seerr' }: PWAHeaderProps) => {
+const PWAHeader = ({ applicationTitle = 'Plex Requests' }: PWAHeaderProps) => {
   return (
     <>
       <link

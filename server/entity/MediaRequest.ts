@@ -356,13 +356,28 @@ export class MediaRequest {
         ) {
           return false;
         }
+        if (rule.releasedBefore) {
+          const releaseDate =
+            'release_date' in tmdbMedia
+              ? tmdbMedia.release_date
+              : tmdbMedia.first_air_date;
+          const releaseYear = Number((releaseDate ?? '').slice(0, 4));
+          if (!releaseYear || releaseYear >= rule.releasedBefore) {
+            return false;
+          }
+        }
         return true;
       });
 
       // hacky way to prioritize rules
       // TODO: make this better
       const prioritizedRule = appliedOverrideRules.sort((a, b) => {
-        const keys: (keyof OverrideRule)[] = ['genre', 'language', 'keywords'];
+        const keys: (keyof OverrideRule)[] = [
+          'genre',
+          'language',
+          'keywords',
+          'releasedBefore',
+        ];
 
         const aSpecificity = keys.filter((key) => a[key] !== null).length;
         const bSpecificity = keys.filter((key) => b[key] !== null).length;

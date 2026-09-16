@@ -10,7 +10,7 @@ export interface SettingsContextProps {
 
 const defaultSettings = {
   initialized: false,
-  applicationTitle: 'Seerr',
+  applicationTitle: 'Plex Requests',
   applicationUrl: '',
   hideAvailable: false,
   hideBlocklisted: false,
