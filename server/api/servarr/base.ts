@@ -69,6 +69,12 @@ export interface Tag {
   label: string;
 }
 
+export interface ServarrCommand {
+  id: number;
+  name: string;
+  status: string;
+}
+
 interface QueueResponse<QueueItemAppendT> {
   page: number;
   pageSize: number;
@@ -236,16 +242,34 @@ class ServarrBase<QueueItemAppendT> extends ExternalAPI {
   protected async runCommand(
     commandName: string,
     options: Record<string, unknown>
-  ): Promise<void> {
+  ): Promise<ServarrCommand | undefined> {
     try {
-      await this.axios.post(`/command`, {
+      const response = await this.axios.post<ServarrCommand>(`/command`, {
         name: commandName,
         ...options,
       });
+
+      return response.data;
     } catch (e) {
       throw new Error(`[${this.apiName}] Failed to run command: ${e.message}`, {
         cause: e,
       });
+    }
+  }
+
+  public async getCommand(id: number): Promise<ServarrCommand | null> {
+    try {
+      const response = await this.axios.get<ServarrCommand>(`/command/${id}`);
+
+      return response.data;
+    } catch (e) {
+      if (e?.response?.status === 404) {
+        return null;
+      }
+      throw new Error(
+        `[${this.apiName}] Failed to retrieve command: ${e.message}`,
+        { cause: e }
+      );
     }
   }
 }

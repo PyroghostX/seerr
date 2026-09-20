@@ -38,6 +38,8 @@ const messages = defineMessages('components.Settings.OverrideRuleModal', {
   languages: 'Languages',
   keywords: 'Keywords',
   releasedBefore: 'Released In/Before year',
+  releasedBeforeTip:
+    'Movies: release year. TV: each requested season is matched by its own air year; later seasons fall through to the next rule or the server default and Sonarr is switched between the profiles in phases',
   rootfolder: 'Root Folder',
   selectRootFolder: 'Select root folder',
   qualityprofile: 'Quality Profile',
@@ -425,6 +427,9 @@ const OverrideRuleModal = ({
                 <div className="form-row">
                   <label htmlFor="releasedBefore" className="text-label">
                     {intl.formatMessage(messages.releasedBefore)}
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.releasedBeforeTip)}
+                    </span>
                   </label>
                   <div className="form-input-area">
                     <div className="form-input-field">

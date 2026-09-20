@@ -1,3 +1,4 @@
+import { orderSeasonsForSearch } from '@server/lib/eraPlan';
 import logger from '@server/logger';
 import type { AxiosResponse } from 'axios';
 import ServarrBase from './base';
@@ -123,6 +124,10 @@ export interface AddSeriesOptions {
   searchNow?: boolean;
 }
 
+export interface AddSeriesResult extends SonarrSeries {
+  searchCommandIds?: number[];
+}
+
 export interface LanguageProfile {
   id: number;
   name: string;
@@ -226,7 +231,7 @@ class SonarrAPI extends ServarrBase<{
     return response.data[0];
   }
 
-  public async addSeries(options: AddSeriesOptions): Promise<SonarrSeries> {
+  public async addSeries(options: AddSeriesOptions): Promise<AddSeriesResult> {
     try {
       const series = await this.getSeriesByTvdbId(options.tvdbid);
 
@@ -282,11 +287,15 @@ class SonarrAPI extends ServarrBase<{
             });
           }
 
-          if (options.searchNow) {
-            this.searchSeries(newSeriesResponse.data.id);
+          let searchCommandIds: number[] | undefined;
+          if (options.searchNow && options.seasons.length > 0) {
+            searchCommandIds = await this.searchSeasonsOrdered(
+              newSeriesResponse.data.id,
+              options.seasons
+            );
           }
 
-          return newSeriesResponse.data;
+          return { ...newSeriesResponse.data, searchCommandIds };
         } else {
           logger.error('Failed to update series in Sonarr', {
             label: 'Sonarr',
@@ -319,7 +328,7 @@ class SonarrAPI extends ServarrBase<{
           seriesType: options.seriesType,
           addOptions: {
             ignoreEpisodesWithFiles: true,
-            searchForMissingEpisodes: options.searchNow,
+            searchForMissingEpisodes: false,
           },
         } as Partial<SonarrSeries>
       );
@@ -338,7 +347,15 @@ class SonarrAPI extends ServarrBase<{
         throw new Error('Failed to add series to Sonarr');
       }
 
-      return createdSeriesResponse.data;
+      let searchCommandIds: number[] | undefined;
+      if (options.searchNow && options.seasons.length > 0) {
+        searchCommandIds = await this.searchSeasonsOrdered(
+          createdSeriesResponse.data.id,
+          options.seasons
+        );
+      }
+
+      return { ...createdSeriesResponse.data, searchCommandIds };
     } catch (e) {
       logger.error('Something went wrong while adding a series to Sonarr.', {
         label: 'Sonarr API',
@@ -401,6 +418,7 @@ class SonarrAPI extends ServarrBase<{
     if (!series.id) {
       throw new Error('Series is not in Sonarr, cannot upgrade');
     }
+    const seriesId = series.id;
 
     // The quality profile is series-wide, so seasons that were not chosen are
     // unmonitored to keep Sonarr from upgrading them too. Specials are left alone.
@@ -411,16 +429,13 @@ class SonarrAPI extends ServarrBase<{
         : { ...season, monitored: chosen.has(season.seasonNumber) }
     );
 
-    const response = await this.axios.put<SonarrSeries>(
-      `/series/${series.id}`,
-      {
-        ...series,
-        seasons,
-        qualityProfileId: options.profileId,
-        monitored: true,
-        ...(options.futureSeasons ? { monitorNewItems: 'all' } : {}),
-      }
-    );
+    const response = await this.axios.put<SonarrSeries>(`/series/${seriesId}`, {
+      ...series,
+      seasons,
+      qualityProfileId: options.profileId,
+      monitored: true,
+      ...(options.futureSeasons ? { monitorNewItems: 'all' } : {}),
+    });
 
     logger.info(
       'Changed quality profile of existing series in Sonarr for upgrade.',
@@ -437,14 +452,19 @@ class SonarrAPI extends ServarrBase<{
     if (options.searchNow) {
       try {
         if (options.seasons && options.seasons.length > 0) {
-          for (const seasonNumber of options.seasons) {
-            await this.runCommand('SeasonSearch', {
+          await this.searchSeasonsOrdered(seriesId, options.seasons);
+        } else {
+          const monitoredSeasons = response.data.seasons
+            .filter((s) => s.seasonNumber !== 0 && s.monitored)
+            .map((s) => s.seasonNumber);
+
+          if (monitoredSeasons.length > 0) {
+            await this.searchSeasonsOrdered(seriesId, monitoredSeasons);
+          } else {
+            await this.runCommand('SeriesSearch', {
               seriesId: response.data.id,
-              seasonNumber,
             });
           }
-        } else {
-          await this.runCommand('SeriesSearch', { seriesId: response.data.id });
         }
       } catch (e) {
         logger.error(
@@ -459,6 +479,77 @@ class SonarrAPI extends ServarrBase<{
     }
 
     return response.data;
+  }
+
+  /**
+   * Search the given seasons of a series in the order requested by
+   * `orderSeasonsForSearch` (first and last requested season, then the
+   * middle seasons ascending) by posting SeasonSearch commands one at a
+   * time. Sonarr runs commands of the same name in submission order, so
+   * posting sequentially is enough to control the search order.
+   *
+   * Freshly added series have their episodes populated asynchronously, so
+   * this waits (briefly) for at least one episode of the requested seasons
+   * to show up before searching.
+   */
+  public async searchSeasonsOrdered(
+    seriesId: number,
+    seasons: number[]
+  ): Promise<number[]> {
+    if (seasons.length === 0) {
+      return [];
+    }
+
+    const seasonSet = new Set(seasons);
+    const maxAttempts = 20;
+    const delayMs = 3000;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const episodes = await this.getEpisodes(seriesId);
+      if (episodes.some((ep) => seasonSet.has(ep.seasonNumber))) {
+        break;
+      }
+      if (attempt === maxAttempts - 1) {
+        logger.warn(
+          'Timed out waiting for Sonarr to populate episodes before searching seasons',
+          {
+            label: 'Sonarr API',
+            seriesId,
+            seasons,
+          }
+        );
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+
+    const order = orderSeasonsForSearch(seasons);
+    logger.info('Queuing season searches', {
+      label: 'Sonarr API',
+      seriesId,
+      order,
+    });
+
+    const commandIds: number[] = [];
+    for (const seasonNumber of order) {
+      try {
+        const command = await this.runCommand('SeasonSearch', {
+          seriesId,
+          seasonNumber,
+        });
+        if (command?.id) {
+          commandIds.push(command.id);
+        }
+      } catch (e) {
+        logger.error('Failed to queue season search', {
+          label: 'Sonarr API',
+          errorMessage: e.message,
+          seriesId,
+          seasonNumber,
+        });
+      }
+    }
+
+    return commandIds;
   }
 
   public async searchSeries(seriesId: number): Promise<void> {
@@ -511,6 +602,114 @@ class SonarrAPI extends ServarrBase<{
       });
       throw new Error('Failed to monitor episodes', { cause: e });
     }
+  }
+
+  public async getSeasonProgress(seriesId: number): Promise<
+    {
+      seasonNumber: number;
+      monitored: boolean;
+      episodeFileCount: number;
+      episodeCount: number;
+    }[]
+  > {
+    const series = await this.getSeriesById(seriesId);
+
+    return series.seasons.map((season) => ({
+      seasonNumber: season.seasonNumber,
+      monitored: season.monitored,
+      episodeFileCount: season.statistics?.episodeFileCount ?? 0,
+      episodeCount: season.statistics?.episodeCount ?? 0,
+    }));
+  }
+
+  public async getQueueForSeries(seriesId: number): Promise<unknown[]> {
+    try {
+      const response = await this.axios.get<unknown>('/queue/details', {
+        params: {
+          seriesId,
+          includeSeries: false,
+          includeEpisode: false,
+        },
+      });
+
+      return Array.isArray(response.data) ? response.data : [];
+    } catch (e) {
+      throw new Error(
+        `[Sonarr] Failed to retrieve queue for series: ${e.message}`,
+        { cause: e }
+      );
+    }
+  }
+
+  public async applyEraPhase(options: {
+    seriesId: number;
+    profileId: number;
+    monitorSeasons: number[];
+    unmonitorSeasons: number[];
+    searchNow: boolean;
+  }): Promise<{ series: SonarrSeries; commandIds: number[] }> {
+    const series = await this.getSeriesById(options.seriesId);
+
+    const seasons = series.seasons.map((season) => {
+      if (season.seasonNumber === 0) {
+        return season;
+      }
+      if (options.unmonitorSeasons.includes(season.seasonNumber)) {
+        return { ...season, monitored: false };
+      }
+      if (options.monitorSeasons.includes(season.seasonNumber)) {
+        return { ...season, monitored: true };
+      }
+      return season;
+    });
+
+    const response = await this.axios.put<SonarrSeries>(
+      `/series/${series.id}`,
+      {
+        ...series,
+        qualityProfileId: options.profileId,
+        monitored: true,
+        seasons,
+      }
+    );
+
+    try {
+      const episodes = await this.getEpisodes(options.seriesId);
+      const episodeIdsToMonitor = episodes
+        .filter(
+          (ep) =>
+            options.monitorSeasons.includes(ep.seasonNumber) && !ep.monitored
+        )
+        .map((ep) => ep.id);
+
+      if (episodeIdsToMonitor.length > 0) {
+        await this.monitorEpisodes(episodeIdsToMonitor);
+      }
+    } catch (e) {
+      logger.warn('Failed to re-monitor episodes for era phase', {
+        label: 'Sonarr',
+        errorMessage: e.message,
+        seriesId: options.seriesId,
+      });
+    }
+
+    const commandIds = options.searchNow
+      ? await this.searchSeasonsOrdered(
+          options.seriesId,
+          options.monitorSeasons
+        )
+      : [];
+
+    logger.info('Applied era phase', {
+      label: 'Sonarr',
+      seriesId: response.data.id,
+      seriesTitle: response.data.title,
+      qualityProfileId: options.profileId,
+      monitoredSeasons: options.monitorSeasons,
+      unmonitoredSeasons: options.unmonitorSeasons,
+    });
+
+    return { series: response.data, commandIds };
   }
 
   private buildSeasonList(

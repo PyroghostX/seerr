@@ -376,7 +376,8 @@ export type JobId =
   | 'jellyfin-full-scan'
   | 'image-cache-cleanup'
   | 'availability-sync'
-  | 'process-blocklisted-tags';
+  | 'process-blocklisted-tags'
+  | 'sonarr-era-phases';
 
 export interface AllSettings {
   clientId: string;
@@ -617,6 +618,9 @@ class Settings {
         },
         'process-blocklisted-tags': {
           schedule: '0 30 1 */7 * *',
+        },
+        'sonarr-era-phases': {
+          schedule: '0 */5 * * * *',
         },
       },
       network: {

@@ -2,6 +2,7 @@ import { MediaServerType } from '@server/constants/server';
 import blocklistedTagsProcessor from '@server/job/blocklistedTagsProcessor';
 import availabilitySync from '@server/lib/availabilitySync';
 import downloadTracker from '@server/lib/downloadtracker';
+import { eraPhaseRunner } from '@server/lib/eraPhases';
 import ImageProxy from '@server/lib/imageproxy';
 import refreshToken from '@server/lib/refreshToken';
 import {
@@ -175,6 +176,25 @@ export const startJobs = (): void => {
     }),
     running: () => sonarrScanner.status().running,
     cancelFn: () => sonarrScanner.cancel(),
+  });
+
+  // Advances Sonarr era plans (multi-quality-profile phased requests) every 5 minutes
+  const eraPhasesSchedule =
+    jobs['sonarr-era-phases']?.schedule ?? '0 */5 * * * *';
+  scheduledJobs.push({
+    id: 'sonarr-era-phases',
+    name: 'Sonarr Era Phases',
+    type: 'process',
+    interval: 'minutes',
+    cronSchedule: eraPhasesSchedule,
+    job: schedule.scheduleJob(eraPhasesSchedule, () => {
+      logger.info('Starting scheduled job: Sonarr Era Phases', {
+        label: 'Jobs',
+      });
+      eraPhaseRunner.run();
+    }),
+    running: () => eraPhaseRunner.running,
+    cancelFn: () => eraPhaseRunner.cancel(),
   });
 
   // Checks if media is still available in plex/sonarr/radarr libs

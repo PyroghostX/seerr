@@ -9,6 +9,11 @@ import {
 import { getRepository } from '@server/datasource';
 import OverrideRule from '@server/entity/OverrideRule';
 import type { MediaRequestBody } from '@server/interfaces/api/requestInterfaces';
+import {
+  groupSeasonsByEra,
+  seasonAirYear,
+  serializeEraPlan,
+} from '@server/lib/eraPlan';
 import notificationManager, { Notification } from '@server/lib/notifications';
 import { Permission } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
@@ -270,6 +275,13 @@ export class MediaRequest {
     let profileId = requestBody.profileId;
     let tags = requestBody.tags;
 
+    // Resolves the highest-priority override rule for a given release/air
+    // year. Set only when `useOverrides` is true; used immediately for
+    // movies (below) and again per-era once a TV request's seasons are known.
+    let resolveRule:
+      | ((year: number | null) => OverrideRule | undefined)
+      | undefined;
+
     if (useOverrides) {
       const defaultRadarrId = requestBody.is4k
         ? settings.radarr.find((r) => r.is4k && r.isDefault)?.id
@@ -291,121 +303,126 @@ export class MediaRequest {
               where: { [defaultServiceIdField]: defaultServiceId },
             });
 
-      const appliedOverrideRules = overrideRules.filter((rule) => {
-        const hasAnimeKeyword =
-          'results' in tmdbMedia.keywords &&
-          tmdbMedia.keywords.results.some(
-            (keyword: TmdbKeyword) => keyword.id === ANIME_KEYWORD_ID
-          );
+      resolveRule = (year: number | null): OverrideRule | undefined => {
+        const appliedOverrideRules = overrideRules.filter((rule) => {
+          const hasAnimeKeyword =
+            'results' in tmdbMedia.keywords &&
+            tmdbMedia.keywords.results.some(
+              (keyword: TmdbKeyword) => keyword.id === ANIME_KEYWORD_ID
+            );
 
-        // Skip override rules if the media is an anime TV show as anime TV
-        // is handled by default and override rules do not explicitly include
-        // the anime keyword
-        if (
-          requestBody.mediaType === MediaType.TV &&
-          hasAnimeKeyword &&
-          (!rule.keywords ||
-            !rule.keywords.split(',').map(Number).includes(ANIME_KEYWORD_ID))
-        ) {
-          return false;
-        }
-
-        if (
-          rule.users &&
-          !rule.users
-            .split(',')
-            .some((userId) => Number(userId) === requestUser.id)
-        ) {
-          return false;
-        }
-        if (
-          rule.genre &&
-          !rule.genre
-            .split(',')
-            .some((genreId) =>
-              tmdbMedia.genres
-                .map((genre) => genre.id)
-                .includes(Number(genreId))
-            )
-        ) {
-          return false;
-        }
-        if (
-          rule.language &&
-          !rule.language
-            .split('|')
-            .some((languageId) => languageId === tmdbMedia.original_language)
-        ) {
-          return false;
-        }
-        if (
-          rule.keywords &&
-          !rule.keywords.split(',').some((keywordId) => {
-            let keywordList: TmdbKeyword[] = [];
-
-            if ('keywords' in tmdbMedia.keywords) {
-              keywordList = tmdbMedia.keywords.keywords;
-            } else if ('results' in tmdbMedia.keywords) {
-              keywordList = tmdbMedia.keywords.results;
-            }
-
-            return keywordList
-              .map((keyword: TmdbKeyword) => keyword.id)
-              .includes(Number(keywordId));
-          })
-        ) {
-          return false;
-        }
-        if (rule.releasedBefore) {
-          const releaseDate =
-            'release_date' in tmdbMedia
-              ? tmdbMedia.release_date
-              : tmdbMedia.first_air_date;
-          const releaseYear = Number((releaseDate ?? '').slice(0, 4));
-          if (!releaseYear || releaseYear > rule.releasedBefore) {
+          // Skip override rules if the media is an anime TV show as anime TV
+          // is handled by default and override rules do not explicitly include
+          // the anime keyword
+          if (
+            requestBody.mediaType === MediaType.TV &&
+            hasAnimeKeyword &&
+            (!rule.keywords ||
+              !rule.keywords.split(',').map(Number).includes(ANIME_KEYWORD_ID))
+          ) {
             return false;
           }
-        }
-        return true;
-      });
 
-      // hacky way to prioritize rules
-      // TODO: make this better
-      const prioritizedRule = appliedOverrideRules.sort((a, b) => {
-        const keys: (keyof OverrideRule)[] = [
-          'genre',
-          'language',
-          'keywords',
-          'releasedBefore',
-        ];
+          if (
+            rule.users &&
+            !rule.users
+              .split(',')
+              .some((userId) => Number(userId) === requestUser.id)
+          ) {
+            return false;
+          }
+          if (
+            rule.genre &&
+            !rule.genre
+              .split(',')
+              .some((genreId) =>
+                tmdbMedia.genres
+                  .map((genre) => genre.id)
+                  .includes(Number(genreId))
+              )
+          ) {
+            return false;
+          }
+          if (
+            rule.language &&
+            !rule.language
+              .split('|')
+              .some((languageId) => languageId === tmdbMedia.original_language)
+          ) {
+            return false;
+          }
+          if (
+            rule.keywords &&
+            !rule.keywords.split(',').some((keywordId) => {
+              let keywordList: TmdbKeyword[] = [];
 
-        const aSpecificity = keys.filter((key) => a[key] !== null).length;
-        const bSpecificity = keys.filter((key) => b[key] !== null).length;
+              if ('keywords' in tmdbMedia.keywords) {
+                keywordList = tmdbMedia.keywords.keywords;
+              } else if ('results' in tmdbMedia.keywords) {
+                keywordList = tmdbMedia.keywords.results;
+              }
 
-        // Take the rule with the most specific condition first
-        return bSpecificity - aSpecificity;
-      })[0];
-
-      if (prioritizedRule) {
-        if (prioritizedRule.rootFolder) {
-          rootFolder = prioritizedRule.rootFolder;
-        }
-        if (prioritizedRule.profileId) {
-          profileId = prioritizedRule.profileId;
-        }
-        if (prioritizedRule.tags) {
-          tags = [
-            ...new Set([
-              ...(tags || []),
-              ...prioritizedRule.tags.split(',').map((tag) => Number(tag)),
-            ]),
-          ];
-        }
-
-        logger.debug('Override rule applied.', {
-          label: 'Media Request',
-          overrides: prioritizedRule,
+              return keywordList
+                .map((keyword: TmdbKeyword) => keyword.id)
+                .includes(Number(keywordId));
+            })
+          ) {
+            return false;
+          }
+          if (rule.releasedBefore) {
+            if (year === null || year > rule.releasedBefore) {
+              return false;
+            }
+          }
+          return true;
         });
+
+        // hacky way to prioritize rules
+        // TODO: make this better
+        return appliedOverrideRules.sort((a, b) => {
+          const keys: (keyof OverrideRule)[] = [
+            'genre',
+            'language',
+            'keywords',
+            'releasedBefore',
+          ];
+
+          const aSpecificity = keys.filter((key) => a[key] !== null).length;
+          const bSpecificity = keys.filter((key) => b[key] !== null).length;
+
+          // Take the rule with the most specific condition first
+          return bSpecificity - aSpecificity;
+        })[0];
+      };
+
+      if (requestBody.mediaType === MediaType.MOVIE) {
+        const rule = resolveRule(
+          seasonAirYear(
+            (tmdbMedia as { release_date?: string | null }).release_date
+          )
+        );
+
+        if (rule) {
+          if (rule.rootFolder) {
+            rootFolder = rule.rootFolder;
+          }
+          if (rule.profileId) {
+            profileId = rule.profileId;
+          }
+          if (rule.tags) {
+            tags = [
+              ...new Set([
+                ...(tags || []),
+                ...rule.tags.split(',').map((tag) => Number(tag)),
+              ]),
+            ];
+          }
+
+          logger.debug('Override rule applied.', {
+            label: 'Media Request',
+            overrides: rule,
+          });
+        }
       }
     }
 
@@ -525,6 +542,76 @@ export class MediaRequest {
         throw new QuotaRestrictedError('Series Quota exceeded.');
       }
 
+      let eraPlan: string | null = null;
+
+      if (useOverrides && resolveRule) {
+        const seasonYearBySeasonNumber = new Map(
+          finalSeasons.map((sn) => [
+            sn,
+            seasonAirYear(
+              (tmdbMediaShow.seasons ?? []).find((s) => s.season_number === sn)
+                ?.air_date
+            ),
+          ])
+        );
+        const seasonYears = finalSeasons.map((sn) => ({
+          seasonNumber: sn,
+          year: seasonYearBySeasonNumber.get(sn) ?? null,
+        }));
+
+        const groups = groupSeasonsByEra(
+          seasonYears,
+          (year) => resolveRule?.(year)?.profileId ?? null
+        );
+
+        const firstEraRule = resolveRule(
+          seasonYearBySeasonNumber.get(groups[0].seasons[0]) ?? null
+        );
+
+        if (firstEraRule) {
+          if (firstEraRule.rootFolder) {
+            rootFolder = firstEraRule.rootFolder;
+          }
+          if (firstEraRule.profileId) {
+            profileId = firstEraRule.profileId;
+          }
+          if (firstEraRule.tags) {
+            tags = [
+              ...new Set([
+                ...(tags || []),
+                ...firstEraRule.tags.split(',').map((tag) => Number(tag)),
+              ]),
+            ];
+          }
+
+          logger.debug('Override rule applied.', {
+            label: 'Media Request',
+            overrides: firstEraRule,
+          });
+        }
+
+        if (groups.length > 1) {
+          eraPlan = serializeEraPlan({
+            pending: groups.slice(1).map((g) => ({
+              profileId: g.profileId,
+              seasons: g.seasons,
+            })),
+          });
+
+          logger.info(
+            'Request spans several eras; later seasons will be sent to Sonarr in phases',
+            {
+              label: 'Media Request',
+              tmdbId: tmdbMedia.id,
+              phases: groups.map((g) => ({
+                profileId: g.profileId,
+                seasons: g.seasons,
+              })),
+            }
+          );
+        }
+      }
+
       await mediaRepository.save(media);
 
       const request = new MediaRequest({
@@ -588,6 +675,7 @@ export class MediaRequest {
         ),
         isAutoRequest: options.isAutoRequest ?? false,
         ignoreQuota,
+        eraPlan,
       });
 
       await requestRepository.save(request);
@@ -829,6 +917,10 @@ export class MediaRequest {
 
   @Column({ default: false })
   public upgradeFutureSeasons: boolean;
+
+  /** JSON EraPlan (see server/lib/eraPlan.ts); null when the request has a single era */
+  @Column({ type: 'text', nullable: true })
+  public eraPlan?: string | null;
 
   constructor(init?: Partial<MediaRequest>) {
     Object.assign(this, init);

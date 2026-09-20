@@ -15,8 +15,11 @@ import {
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
 import { MediaRequest } from '@server/entity/MediaRequest';
+import OverrideRule from '@server/entity/OverrideRule';
 import Season from '@server/entity/Season';
 import SeasonRequest from '@server/entity/SeasonRequest';
+import type { EraPlan } from '@server/lib/eraPlan';
+import { parseEraPlan, serializeEraPlan } from '@server/lib/eraPlan';
 import notificationManager, { Notification } from '@server/lib/notifications';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -692,6 +695,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
           isAnime && sonarrSettings.activeAnimeProfileId
             ? sonarrSettings.activeAnimeProfileId
             : sonarrSettings.activeProfileId;
+        const defaultQualityProfile = qualityProfile;
         let languageProfile =
           isAnime && sonarrSettings.activeAnimeLanguageProfileId
             ? sonarrSettings.activeAnimeLanguageProfileId
@@ -799,13 +803,129 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
           }
         }
 
+        let plan: EraPlan | null = parseEraPlan(entity.eraPlan);
+        if (plan) {
+          plan.pending = plan.pending.map((p) => ({
+            ...p,
+            profileId: p.profileId ?? defaultQualityProfile,
+          }));
+        }
+        const laterSeasons = new Set(
+          plan?.pending.flatMap((p) => p.seasons) ?? []
+        );
+        let phaseSeasons = entity.seasons
+          .map((season) => season.seasonNumber)
+          .filter((seasonNumber) => !laterSeasons.has(seasonNumber));
+        let preSearchCommandIds: number[] = [];
+        let currentProfileForPlan = qualityProfile;
+        let currentPhaseSeasons = phaseSeasons;
+
+        // Only take over an existing series' quality profile when an era rule
+        // (an override rule with a "released in/before" year) is involved,
+        // i.e. the series sits on an era profile or is being moved to one.
+        // Profiles picked by hand in Sonarr for other reasons are left alone.
+        const eraProfileIds = new Set(
+          (
+            await manager.getRepository(OverrideRule).find({
+              where: { sonarrServiceId: sonarrSettings.id },
+            })
+          )
+            .filter((rule) => rule.releasedBefore && rule.profileId)
+            .map((rule) => rule.profileId as number)
+        );
+
+        const existing = await sonarr.getSeriesByTvdbId(tvdbId);
+        if (
+          existing.id &&
+          existing.qualityProfileId !== qualityProfile &&
+          !plan &&
+          !eraProfileIds.has(existing.qualityProfileId) &&
+          !eraProfileIds.has(qualityProfile)
+        ) {
+          logger.debug(
+            'Series already in Sonarr on a different quality profile that is not an era profile; leaving it unchanged',
+            {
+              label: 'Media Request',
+              requestId: entity.id,
+              seriesId: existing.id,
+              seriesProfileId: existing.qualityProfileId,
+              requestProfileId: qualityProfile,
+            }
+          );
+        } else if (
+          existing.id &&
+          existing.qualityProfileId !== qualityProfile
+        ) {
+          const progress = await sonarr.getSeasonProgress(existing.id);
+          const others = progress.filter(
+            (season) =>
+              season.seasonNumber !== 0 &&
+              season.monitored &&
+              !phaseSeasons.includes(season.seasonNumber)
+          );
+          const incomplete = others.filter(
+            (season) => season.episodeFileCount < season.episodeCount
+          );
+
+          if (incomplete.length === 0) {
+            await sonarr.applyEraPhase({
+              seriesId: existing.id,
+              profileId: qualityProfile,
+              monitorSeasons: [],
+              unmonitorSeasons: others.map((season) => season.seasonNumber),
+              searchNow: false,
+            });
+            sonarr.clearCache({ tvdbId, externalId: existing.id });
+            logger.info(
+              'Series already in Sonarr on another quality profile; switched profile and un-monitored its completed seasons',
+              {
+                label: 'Media Request',
+                requestId: entity.id,
+                seriesId: existing.id,
+                fromProfileId: existing.qualityProfileId,
+                toProfileId: qualityProfile,
+                unmonitoredSeasons: others.map((season) => season.seasonNumber),
+              }
+            );
+          } else {
+            const waitingOnSeasons = incomplete.map(
+              (season) => season.seasonNumber
+            );
+            logger.info(
+              'Series already in Sonarr on another quality profile with unfinished seasons; the requested seasons will be sent once those finish',
+              {
+                label: 'Media Request',
+                requestId: entity.id,
+                seriesId: existing.id,
+                waitingOnSeasons,
+                requestedSeasons: phaseSeasons,
+              }
+            );
+
+            plan = plan ?? { pending: [] };
+            plan.pending.unshift({
+              profileId: qualityProfile,
+              seasons: phaseSeasons,
+            });
+            phaseSeasons = [];
+            currentProfileForPlan = existing.qualityProfileId;
+            currentPhaseSeasons = waitingOnSeasons;
+            preSearchCommandIds = sonarrSettings.preventSearch
+              ? []
+              : await sonarr.searchSeasonsOrdered(
+                  existing.id,
+                  waitingOnSeasons
+                );
+          }
+        }
+
         const sonarrSeriesOptions: AddSeriesOptions = {
           profileId: qualityProfile,
           languageProfileId: languageProfile,
           rootFolderPath: rootFolder,
           title: series.name,
           tvdbid: tvdbId,
-          seasons: entity.seasons.map((season) => season.seasonNumber),
+          seasons: phaseSeasons,
           seasonFolder: sonarrSettings.enableSeasonFolders,
           seriesType,
           tags,
@@ -837,6 +957,28 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
             media[entity.is4k ? 'serviceId4k' : 'serviceId'] =
               sonarrSettings?.id;
             await mediaRepository.save(media);
+
+            if (plan && plan.pending.length > 0) {
+              plan.current = {
+                profileId: currentProfileForPlan,
+                seasons: currentPhaseSeasons,
+                commandIds: [
+                  ...preSearchCommandIds,
+                  ...(sonarrSeries.searchCommandIds ?? []),
+                ],
+                startedAt: new Date().toISOString(),
+              };
+              await getRepository(MediaRequest).update(entity.id, {
+                eraPlan: serializeEraPlan(plan),
+              });
+              logger.info('Era phase 1 sent to Sonarr', {
+                label: 'Media Request',
+                requestId: entity.id,
+                profileId: currentProfileForPlan,
+                seasons: currentPhaseSeasons,
+                pendingPhases: plan.pending.length,
+              });
+            }
           })
           .catch(async () => {
             try {
