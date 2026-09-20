@@ -3,10 +3,15 @@ import type { RequestOverrides } from '@app/components/RequestModal/AdvancedRequ
 import AdvancedRequester from '@app/components/RequestModal/AdvancedRequester';
 import QuotaDisplay from '@app/components/RequestModal/QuotaDisplay';
 import RequestInfoPanel from '@app/components/RequestModal/RequestInfoPanel';
+import useSettings from '@app/hooks/useSettings';
 import useToasts from '@app/hooks/useToasts';
 import { useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
+import {
+  getDiscoverRegion,
+  getMovieReleaseStatus,
+} from '@app/utils/releaseStatus';
 import { MediaStatus } from '@server/constants/media';
 import type { MediaRequest } from '@server/entity/MediaRequest';
 import type { NonFunctionProperties } from '@server/interfaces/api/common';
@@ -19,6 +24,9 @@ import { useIntl } from 'react-intl';
 import useSWR, { mutate } from 'swr';
 
 const messages = defineMessages('components.RequestModal', {
+  unreleasedheading: 'This movie is unreleased.',
+  unreleaseddigitaldate: 'The digital release date is: {date}',
+  unreleasednodate: 'No digital release date has been announced yet.',
   requestadmin: 'This request will be approved automatically.',
   requestSuccess: '<strong>{title}</strong> requested successfully!',
   requestCancel: 'Request for <strong>{title}</strong> canceled.',
@@ -63,6 +71,14 @@ const MovieRequestModal = ({
   });
   const intl = useIntl();
   const { user, hasPermission } = useUser();
+  const settings = useSettings();
+  const releaseStatus = getMovieReleaseStatus(
+    data,
+    getDiscoverRegion(
+      user?.settings?.discoverRegion,
+      settings.currentSettings.discoverRegion
+    )
+  );
   const { data: quota } = useSWR<QuotaResponse>(
     user &&
       (!requestOverrides?.user?.id || hasPermission(Permission.MANAGE_USERS))
@@ -359,6 +375,25 @@ const MovieRequestModal = ({
             setRequestOverrides(overrides);
           }}
         />
+      )}
+      {releaseStatus.isUnreleased && (
+        <div className="mt-4 rounded-md border border-yellow-500 bg-yellow-500/20 px-4 py-3 text-center">
+          <p className="text-xl font-bold text-yellow-200">
+            {intl.formatMessage(messages.unreleasedheading)}
+          </p>
+          <p className="mt-1 text-lg font-semibold text-yellow-100">
+            {releaseStatus.digitalReleaseDate
+              ? intl.formatMessage(messages.unreleaseddigitaldate, {
+                  date: intl.formatDate(releaseStatus.digitalReleaseDate, {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    timeZone: 'UTC',
+                  }),
+                })
+              : intl.formatMessage(messages.unreleasednodate)}
+          </p>
+        </div>
       )}
     </Modal>
   );

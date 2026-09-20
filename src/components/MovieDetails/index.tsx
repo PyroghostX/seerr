@@ -6,6 +6,7 @@ import ImdbLogo from '@app/assets/services/imdb.svg';
 import Spinner from '@app/assets/spinner.svg';
 import TmdbLogo from '@app/assets/tmdb_logo.svg';
 import BlocklistModal from '@app/components/BlocklistModal';
+import Badge from '@app/components/Common/Badge';
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
@@ -32,6 +33,10 @@ import ErrorPage from '@app/pages/_error';
 import { sortCrewPriority } from '@app/utils/creditHelpers';
 import defineMessages from '@app/utils/defineMessages';
 import { refreshIntervalHelper } from '@app/utils/refreshIntervalHelper';
+import {
+  getDiscoverRegion,
+  getMovieReleaseStatus,
+} from '@app/utils/releaseStatus';
 import {
   ArrowRightCircleIcon,
   CloudIcon,
@@ -64,6 +69,10 @@ import { useIntl } from 'react-intl';
 import useSWR from 'swr';
 
 const messages = defineMessages('components.MovieDetails', {
+  unreleased: 'Unreleased',
+  unreleaseddigitaldate: 'Not out on digital yet. Digital release date: {date}',
+  unreleasednodate:
+    'Not out on digital yet. No digital release date has been announced.',
   originaltitle: 'Original Title',
   releasedate:
     '{releaseCount, plural, one {Release Date} other {Release Dates}}',
@@ -242,6 +251,13 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
   const releases = data.releases.results.find(
     (r) => r.iso_3166_1 === discoverRegion
   )?.release_dates;
+  const releaseStatus = getMovieReleaseStatus(
+    data,
+    getDiscoverRegion(
+      user?.settings?.discoverRegion,
+      settings.currentSettings.discoverRegion
+    )
+  );
 
   // Release date types:
   // 1. Premiere
@@ -543,6 +559,29 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
                   serviceUrl={data.mediaInfo?.serviceUrl4k}
                 />
               )}
+            {releaseStatus.isUnreleased && (
+              <Tooltip
+                content={
+                  releaseStatus.digitalReleaseDate
+                    ? intl.formatMessage(messages.unreleaseddigitaldate, {
+                        date: intl.formatDate(
+                          releaseStatus.digitalReleaseDate,
+                          {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            timeZone: 'UTC',
+                          }
+                        ),
+                      })
+                    : intl.formatMessage(messages.unreleasednodate)
+                }
+              >
+                <Badge badgeType="warning">
+                  {intl.formatMessage(messages.unreleased)}
+                </Badge>
+              </Tooltip>
+            )}
           </div>
           <h1 data-testid="media-title">
             {data.title}{' '}

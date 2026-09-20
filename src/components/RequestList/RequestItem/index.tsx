@@ -3,9 +3,11 @@ import Badge from '@app/components/Common/Badge';
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
 import ConfirmButton from '@app/components/Common/ConfirmButton';
+import Tooltip from '@app/components/Common/Tooltip';
 import RequestModal from '@app/components/RequestModal';
 import StatusBadge from '@app/components/StatusBadge';
 import useDeepLinks from '@app/hooks/useDeepLinks';
+import useSettings from '@app/hooks/useSettings';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
@@ -14,6 +16,10 @@ import {
   getRequestDownloadStatus,
   refreshIntervalHelper,
 } from '@app/utils/refreshIntervalHelper';
+import {
+  getDiscoverRegion,
+  getMovieReleaseStatus,
+} from '@app/utils/releaseStatus';
 import {
   ArrowPathIcon,
   CheckIcon,
@@ -35,6 +41,10 @@ import { FormattedRelativeTime, useIntl } from 'react-intl';
 import useSWR, { mutate } from 'swr';
 
 const messages = defineMessages('components.RequestList.RequestItem', {
+  unreleased: 'Unreleased',
+  unreleaseddigitaldate: 'Not out on digital yet. Digital release date: {date}',
+  unreleasednodate:
+    'Not out on digital yet. No digital release date has been announced.',
   upgrade: 'Upgrade',
   seasons: '{seasonCount, plural, one {Season} other {Seasons}}',
   failedretry: 'Something went wrong while retrying the request.',
@@ -311,6 +321,7 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
   const { addToast } = useToasts();
   const intl = useIntl();
   const { user, hasPermission } = useUser();
+  const settings = useSettings();
   const [showEditModal, setShowEditModal] = useState(false);
   const url =
     request.type === 'movie'
@@ -318,6 +329,13 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
       : `/api/v1/tv/${request.media.tmdbId}`;
   const { data: title, error } = useSWR<MovieDetails | TvDetails>(
     inView ? url : null
+  );
+  const releaseStatus = getMovieReleaseStatus(
+    title && isMovie(title) ? title : undefined,
+    getDiscoverRegion(
+      user?.settings?.discoverRegion,
+      settings.currentSettings.discoverRegion
+    )
   );
   const { data: requestData, mutate: revalidate } = useSWR<
     NonFunctionProperties<MediaRequest>
@@ -568,6 +586,31 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                       : requestData.media.serviceUrl
                   }
                 />
+              )}
+              {isMovie(title) && releaseStatus.isUnreleased && (
+                <span className="ml-2">
+                  <Tooltip
+                    content={
+                      releaseStatus.digitalReleaseDate
+                        ? intl.formatMessage(messages.unreleaseddigitaldate, {
+                            date: intl.formatDate(
+                              releaseStatus.digitalReleaseDate,
+                              {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric',
+                                timeZone: 'UTC',
+                              }
+                            ),
+                          })
+                        : intl.formatMessage(messages.unreleasednodate)
+                    }
+                  >
+                    <Badge badgeType="warning">
+                      {intl.formatMessage(messages.unreleased)}
+                    </Badge>
+                  </Tooltip>
+                </span>
               )}
             </div>
             <div className="card-field">
