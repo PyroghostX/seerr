@@ -19,6 +19,7 @@ import type {
 import BaseScanner from '@server/lib/scanners/baseScanner';
 import type { SonarrSettings } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
+import { airedEpisodeCount } from '@server/utils/airedEpisodes';
 import { uniqWith } from 'lodash';
 
 type SyncStatus = StatusBase & {
@@ -193,6 +194,9 @@ class SonarrScanner
           const sonarrSeason = sonarrSeries.seasons.find(
             (s) => s.seasonNumber === season.season_number
           );
+          // Aired-episode count from TMDB, not Sonarr's raw totalEpisodeCount,
+          // so an unaired season doesn't force the show into PROCESSING/PENDING.
+          const airedTotalEpisodes = airedEpisodeCount(tvShow, season);
           if (!sonarrSeason) {
             return {
               seasonNumber: season.season_number,
@@ -202,9 +206,10 @@ class SonarrScanner
                 episodeFileCount: 0,
                 totalEpisodeCount: season.episode_count,
               },
+              airedTotalEpisodes,
             };
           } else {
-            return sonarrSeason;
+            return { ...sonarrSeason, airedTotalEpisodes };
           }
         });
 
@@ -215,7 +220,7 @@ class SonarrScanner
           seasonNumber: season.seasonNumber,
           episodes: !server4k ? totalAvailableEpisodes : 0,
           episodes4k: server4k ? totalAvailableEpisodes : 0,
-          totalEpisodes: season.statistics?.totalEpisodeCount ?? 0,
+          totalEpisodes: season.airedTotalEpisodes,
           processing: season.monitored && totalAvailableEpisodes === 0,
           is4kOverride: server4k,
         });

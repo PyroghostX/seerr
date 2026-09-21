@@ -969,6 +969,7 @@ export class MediaRequest {
       const mediaRepository = getRepository(Media);
       const media = await mediaRepository.findOne({
         where: { id: this.media.id },
+        relations: { seasons: true },
       });
       if (!media) {
         logger.error('Media data not found', {
@@ -979,10 +980,25 @@ export class MediaRequest {
         return;
       }
 
+      // A show rolls up to AVAILABLE once every aired season is present, so
+      // for TV also require each requested season to be available itself.
+      const statusKey = this.is4k ? 'status4k' : 'status';
+      const requestedSeasonsAvailable =
+        this.type !== MediaType.TV ||
+        ((this.seasons ?? []).length > 0 &&
+          (this.seasons ?? []).every((requestSeason) =>
+            media.seasons?.some(
+              (mediaSeason) =>
+                mediaSeason.seasonNumber === requestSeason.seasonNumber &&
+                mediaSeason[statusKey] === MediaStatus.AVAILABLE
+            )
+          ));
+
       if (
         this.status === MediaRequestStatus.APPROVED &&
         !this.isUpgrade &&
-        media[this.is4k ? 'status4k' : 'status'] === MediaStatus.AVAILABLE
+        media[statusKey] === MediaStatus.AVAILABLE &&
+        requestedSeasonsAvailable
       ) {
         logger.info(
           'Media is already available. Sending availability notification instead of approval.',

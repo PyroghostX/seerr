@@ -19,6 +19,7 @@ import {
 import {
   getDiscoverRegion,
   getMovieReleaseStatus,
+  getSeasonReleaseStatus,
 } from '@app/utils/releaseStatus';
 import {
   ArrowPathIcon,
@@ -45,6 +46,10 @@ const messages = defineMessages('components.RequestList.RequestItem', {
   unreleaseddigitaldate: 'Not out on digital yet. Digital release date: {date}',
   unreleasednodate:
     'Not out on digital yet. No digital release date has been announced.',
+  unreleasedseasonbadge: 'Not yet released',
+  unreleasedseason: 'Not yet released. Season {number}',
+  unreleasedseasondate: 'Not yet released. Season {number} premieres {date}',
+  unreleasedseasons: 'Not yet released. Seasons {numbers}',
   upgrade: 'Upgrade',
   seasons: '{seasonCount, plural, one {Season} other {Seasons}}',
   failedretry: 'Something went wrong while retrying the request.',
@@ -337,6 +342,19 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
       settings.currentSettings.discoverRegion
     )
   );
+  const unreleasedSeasons =
+    title && !isMovie(title)
+      ? request.seasons
+          .map((season) => ({
+            season,
+            status: getSeasonReleaseStatus(title, season.seasonNumber),
+          }))
+          .filter(({ status }) => status.isUnreleased)
+      : [];
+  const isSeasonUnreleased = (seasonNumber: number) =>
+    unreleasedSeasons.some(
+      ({ season }) => season.seasonNumber === seasonNumber
+    );
   const { data: requestData, mutate: revalidate } = useSWR<
     NonFunctionProperties<MediaRequest>
   >(`/api/v1/request/${request.id}`, {
@@ -531,7 +549,18 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                   <div className="hide-scrollbar flex flex-nowrap overflow-x-scroll">
                     {request.seasons.map((season) => (
                       <span key={`season-${season.id}`} className="mr-2">
-                        <Badge>
+                        <Badge
+                          badgeType={
+                            isSeasonUnreleased(season.seasonNumber)
+                              ? 'warning'
+                              : 'default'
+                          }
+                          className={
+                            isSeasonUnreleased(season.seasonNumber)
+                              ? '!border-dashed opacity-80'
+                              : ''
+                          }
+                        >
                           {season.seasonNumber === 0
                             ? intl.formatMessage(globalMessages.specials)
                             : season.seasonNumber}
@@ -571,7 +600,15 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
               ) : (
                 <StatusBadge
                   status={
-                    requestData.media[requestData.is4k ? 'status4k' : 'status']
+                    // A completed TV request has every aired season it asked
+                    // for, even when the show as a whole is only partially in
+                    // the library.
+                    requestData.type === 'tv' &&
+                    requestData.status === MediaRequestStatus.COMPLETED
+                      ? MediaStatus.AVAILABLE
+                      : requestData.media[
+                          requestData.is4k ? 'status4k' : 'status'
+                        ]
                   }
                   downloadItem={requestDownloadStatus}
                   title={isMovie(title) ? title.title : title.name}
@@ -608,6 +645,40 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                   >
                     <Badge badgeType="warning">
                       {intl.formatMessage(messages.unreleased)}
+                    </Badge>
+                  </Tooltip>
+                </span>
+              )}
+              {!isMovie(title) && unreleasedSeasons.length > 0 && (
+                <span className="ml-2">
+                  <Tooltip
+                    content={
+                      unreleasedSeasons.length > 1
+                        ? intl.formatMessage(messages.unreleasedseasons, {
+                            numbers: unreleasedSeasons
+                              .map(({ season }) => season.seasonNumber)
+                              .join(', '),
+                          })
+                        : unreleasedSeasons[0].status.airDate
+                          ? intl.formatMessage(messages.unreleasedseasondate, {
+                              number: unreleasedSeasons[0].season.seasonNumber,
+                              date: intl.formatDate(
+                                unreleasedSeasons[0].status.airDate,
+                                {
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric',
+                                  timeZone: 'UTC',
+                                }
+                              ),
+                            })
+                          : intl.formatMessage(messages.unreleasedseason, {
+                              number: unreleasedSeasons[0].season.seasonNumber,
+                            })
+                    }
+                  >
+                    <Badge badgeType="warning">
+                      {intl.formatMessage(messages.unreleasedseasonbadge)}
                     </Badge>
                   </Tooltip>
                 </span>

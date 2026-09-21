@@ -20,6 +20,7 @@ import type {
 import BaseScanner from '@server/lib/scanners/baseScanner';
 import type { Library } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
+import { airedEpisodeCount } from '@server/utils/airedEpisodes';
 import { uniqWith } from 'lodash';
 
 const imdbRegex = new RegExp(/imdb:\/\/(tt[0-9]+)/);
@@ -358,14 +359,14 @@ class PlexScanner
           seasonNumber: season.season_number,
           episodes: totalStandard,
           episodes4k: total4k,
-          totalEpisodes: season.episode_count,
+          totalEpisodes: airedEpisodeCount(tvShow, season),
         });
       } else {
         processableSeasons.push({
           seasonNumber: season.season_number,
           episodes: 0,
           episodes4k: 0,
-          totalEpisodes: season.episode_count,
+          totalEpisodes: airedEpisodeCount(tvShow, season),
         });
       }
     }

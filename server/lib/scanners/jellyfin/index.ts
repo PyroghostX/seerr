@@ -23,6 +23,7 @@ import type {
 import BaseScanner from '@server/lib/scanners/baseScanner';
 import type { Library } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
+import { airedEpisodeCount } from '@server/utils/airedEpisodes';
 import { getHostname } from '@server/utils/getHostname';
 import { uniqWith } from 'lodash';
 
@@ -397,14 +398,14 @@ class JellyfinScanner
 
             processableSeasons.push({
               seasonNumber: season.season_number,
-              totalEpisodes: season.episode_count,
+              totalEpisodes: airedEpisodeCount(tvShow, season),
               episodes: totalStandard,
               episodes4k: total4k,
             });
           } else {
             processableSeasons.push({
               seasonNumber: season.season_number,
-              totalEpisodes: season.episode_count,
+              totalEpisodes: airedEpisodeCount(tvShow, season),
               episodes: 0,
               episodes4k: 0,
             });

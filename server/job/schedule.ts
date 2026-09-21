@@ -14,6 +14,10 @@ import { radarrScanner } from '@server/lib/scanners/radarr';
 import { sonarrScanner } from '@server/lib/scanners/sonarr';
 import type { JobId } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
+import {
+  isTvRequestReconcileRunning,
+  reconcileTvRequests,
+} from '@server/lib/tvRequestReconcile';
 import watchlistSync from '@server/lib/watchlistsync';
 import logger from '@server/logger';
 import schedule from 'node-schedule';
@@ -277,6 +281,28 @@ export const startJobs = (): void => {
     }),
     running: () => blocklistedTagsProcessor.status().running,
     cancelFn: () => blocklistedTagsProcessor.cancel(),
+  });
+
+  // Catches TV requests that should have completed on their own seasons but
+  // never got a Media update to trigger it (see server/lib/tvRequestCompletion.ts)
+  scheduledJobs.push({
+    id: 'tv-request-reconcile',
+    name: 'TV Request Reconcile',
+    type: 'process',
+    interval: 'hours',
+    cronSchedule: jobs['tv-request-reconcile'].schedule,
+    job: schedule.scheduleJob(jobs['tv-request-reconcile'].schedule, () => {
+      logger.info('Starting scheduled job: TV Request Reconcile', {
+        label: 'Jobs',
+      });
+      reconcileTvRequests().catch((e) => {
+        logger.error('Failed to reconcile TV requests', {
+          label: 'TV Request Reconcile',
+          errorMessage: e.message,
+        });
+      });
+    }),
+    running: () => isTvRequestReconcileRunning(),
   });
 
   logger.info('Scheduled jobs loaded', { label: 'Jobs' });

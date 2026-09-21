@@ -307,6 +307,7 @@ export interface TmdbTvDetails {
 export interface TmdbTvScanDetails {
   id: number;
   name: string;
+  last_episode_to_air?: TmdbTvEpisodeResult;
   seasons: TmdbTvSeasonResult[];
   external_ids: TmdbExternalIds;
   keywords: {

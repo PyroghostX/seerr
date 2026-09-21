@@ -581,6 +581,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
 
         const media = await mediaRepository.findOne({
           where: { id: entity.media.id },
+          relations: { seasons: true },
         });
 
         if (!media) {
@@ -641,8 +642,26 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
           return;
         }
 
+        // Media.status can roll up to AVAILABLE while some of the show's
+        // seasons haven't aired yet (see server/utils/airedEpisodes.ts), so
+        // it alone isn't proof that every season this request wants is
+        // actually present. Only short-circuit when each requested season
+        // has a matching Season row that is itself AVAILABLE, otherwise
+        // fall through and let Sonarr pick up the (e.g. unaired) seasons.
+        const statusKey = entity.is4k ? 'status4k' : 'status';
+        const everyRequestedSeasonAvailable =
+          entity.seasons.length > 0 &&
+          entity.seasons.every((requestSeason) =>
+            media.seasons?.some(
+              (mediaSeason) =>
+                mediaSeason.seasonNumber === requestSeason.seasonNumber &&
+                mediaSeason[statusKey] === MediaStatus.AVAILABLE
+            )
+          );
+
         if (
-          media[entity.is4k ? 'status4k' : 'status'] === MediaStatus.AVAILABLE
+          media[statusKey] === MediaStatus.AVAILABLE &&
+          everyRequestedSeasonAvailable
         ) {
           logger.warn('Media already exists, marking request as COMPLETED', {
             label: 'Media Request',

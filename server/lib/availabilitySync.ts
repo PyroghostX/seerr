@@ -20,6 +20,7 @@ import { User } from '@server/entity/User';
 import type { RadarrSettings, SonarrSettings } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import { airedEpisodeCount } from '@server/utils/airedEpisodes';
 import { getHostname } from '@server/utils/getHostname';
 
 class AvailabilitySync {
@@ -391,19 +392,19 @@ class AvailabilitySync {
               if (season.seasonNumber === 0) {
                 return;
               }
-              if (
-                !finalSeasons.has(season.seasonNumber) &&
-                tvShow.seasons.find(
-                  (s) => s.season_number === season.seasonNumber
-                )?.episode_count
-              ) {
+              const tmdbSeason = tvShow.seasons.find(
+                (s) => s.season_number === season.seasonNumber
+              );
+              // Seasons that haven't started airing yet aren't expected to
+              // be present, so they shouldn't count against availability.
+              const hasAiredEpisodes =
+                !!tmdbSeason && airedEpisodeCount(tvShow, tmdbSeason) > 0;
+              if (!finalSeasons.has(season.seasonNumber) && hasAiredEpisodes) {
                 finalSeasons.set(season.seasonNumber, false);
               }
               if (
                 !finalSeasons4k.has(season.seasonNumber) &&
-                tvShow.seasons.find(
-                  (s) => s.season_number === season.seasonNumber
-                )?.episode_count
+                hasAiredEpisodes
               ) {
                 finalSeasons4k.set(season.seasonNumber, false);
               }

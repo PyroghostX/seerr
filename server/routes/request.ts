@@ -79,7 +79,15 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
 
       switch (req.query.filter) {
         case 'available':
-          mediaStatusFilter = [MediaStatus.AVAILABLE];
+          // statusFilter above already restricts this to COMPLETED requests,
+          // so a request whose media only rolled up to PARTIALLY_AVAILABLE
+          // (e.g. a TV request whose own seasons completed even though other,
+          // unrequested seasons of the show are still missing) is still
+          // admitted here.
+          mediaStatusFilter = [
+            MediaStatus.AVAILABLE,
+            MediaStatus.PARTIALLY_AVAILABLE,
+          ];
           break;
         case 'processing':
         case 'unavailable':

@@ -10,6 +10,7 @@ import useToasts from '@app/hooks/useToasts';
 import { useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
+import { getSeasonReleaseStatus } from '@app/utils/releaseStatus';
 import { ANIME_KEYWORD_ID } from '@server/api/themoviedb/constants';
 import { MediaRequestStatus, MediaStatus } from '@server/constants/media';
 import type { MediaRequest } from '@server/entity/MediaRequest';
@@ -50,6 +51,10 @@ const messages = defineMessages('components.RequestModal', {
   autoapproval: 'Automatic Approval',
   requesterror: 'Something went wrong while submitting the request.',
   pendingapproval: 'Your request is pending approval.',
+  unreleasedseasontag: 'Not yet released',
+  unreleasedseasondate: 'Premieres {date}',
+  unreleasedseasonsnote:
+    'These seasons have not aired yet. They will be grabbed as episodes are released.',
 });
 
 interface RequestModalProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -376,6 +381,15 @@ const TvRequestModal = ({
 
   const isOwner = editRequest && editRequest.requestedBy.id === user?.id;
 
+  const seasonsBeingRequested = settings.currentSettings.partialRequestsEnabled
+    ? selectedSeasons
+    : unrequestedSeasons;
+  const allSelectedSeasonsUnreleased =
+    seasonsBeingRequested.length > 0 &&
+    seasonsBeingRequested.every(
+      (seasonNumber) => getSeasonReleaseStatus(data, seasonNumber).isUnreleased
+    );
+
   return data && !error && !data.externalIds.tvdbId && searchModal.show ? (
     <SearchByNameModal
       tvdbId={tvdbId}
@@ -572,6 +586,10 @@ const TvRequestModal = ({
                       const seasonRequest = getSeasonRequest(
                         season.seasonNumber
                       );
+                      const seasonReleaseStatus = getSeasonReleaseStatus(
+                        data,
+                        season.seasonNumber
+                      );
                       const mediaSeason = data?.mediaInfo?.seasons.find(
                         (sn) =>
                           sn.seasonNumber === season.seasonNumber &&
@@ -650,6 +668,28 @@ const TvRequestModal = ({
                               : intl.formatMessage(messages.seasonnumber, {
                                   number: season.seasonNumber,
                                 })}
+                            {seasonReleaseStatus.isUnreleased && (
+                              <Badge badgeType="warning" className="ml-2">
+                                {seasonReleaseStatus.airDate
+                                  ? intl.formatMessage(
+                                      messages.unreleasedseasondate,
+                                      {
+                                        date: intl.formatDate(
+                                          seasonReleaseStatus.airDate,
+                                          {
+                                            year: 'numeric',
+                                            month: 'long',
+                                            day: 'numeric',
+                                            timeZone: 'UTC',
+                                          }
+                                        ),
+                                      }
+                                    )
+                                  : intl.formatMessage(
+                                      messages.unreleasedseasontag
+                                    )}
+                              </Badge>
+                            )}
                           </td>
                           <td className="whitespace-nowrap px-5 py-4 text-sm leading-5 text-gray-200 md:px-6">
                             {season.episodeCount}
@@ -725,6 +765,13 @@ const TvRequestModal = ({
               : undefined
           }
         />
+      )}
+      {allSelectedSeasonsUnreleased && (
+        <div className="mt-4 rounded-md border border-yellow-500 bg-yellow-500/20 px-4 py-3 text-center">
+          <p className="text-sm font-semibold text-yellow-100">
+            {intl.formatMessage(messages.unreleasedseasonsnote)}
+          </p>
+        </div>
       )}
     </Modal>
   );

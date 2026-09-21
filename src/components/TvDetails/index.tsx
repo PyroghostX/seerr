@@ -35,6 +35,7 @@ import ErrorPage from '@app/pages/_error';
 import { sortCrewPriority } from '@app/utils/creditHelpers';
 import defineMessages from '@app/utils/defineMessages';
 import { refreshIntervalHelper } from '@app/utils/refreshIntervalHelper';
+import { getSeasonReleaseStatus } from '@app/utils/releaseStatus';
 import {
   Disclosure,
   DisclosureButton,
@@ -110,6 +111,8 @@ const messages = defineMessages('components.TvDetails', {
   watchlistError: 'Something went wrong. Please try again.',
   removefromwatchlist: 'Remove From Watchlist',
   addtowatchlist: 'Add To Watchlist',
+  unreleasedseason: 'Not yet released',
+  unreleasedseasondate: 'Not yet released. Premieres {date}',
 });
 
 interface TvDetailsProps {
@@ -863,6 +866,11 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                   return null;
                 }
 
+                const seasonReleaseStatus = getSeasonReleaseStatus(
+                  data,
+                  season.seasonNumber
+                );
+
                 return (
                   <Disclosure key={`season-discoslure-${season.seasonNumber}`}>
                     {({ open }) => (
@@ -887,6 +895,36 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                                 episodeCount: season.episodeCount,
                               })}
                             </Badge>
+                            {seasonReleaseStatus.isUnreleased && (
+                              <Tooltip
+                                content={
+                                  seasonReleaseStatus.airDate
+                                    ? intl.formatMessage(
+                                        messages.unreleasedseasondate,
+                                        {
+                                          date: intl.formatDate(
+                                            seasonReleaseStatus.airDate,
+                                            {
+                                              year: 'numeric',
+                                              month: 'long',
+                                              day: 'numeric',
+                                              timeZone: 'UTC',
+                                            }
+                                          ),
+                                        }
+                                      )
+                                    : intl.formatMessage(
+                                        messages.unreleasedseason
+                                      )
+                                }
+                              >
+                                <Badge badgeType="warning">
+                                  {intl.formatMessage(
+                                    messages.unreleasedseason
+                                  )}
+                                </Badge>
+                              </Tooltip>
+                            )}
                           </div>
                           {((!mSeason &&
                             request?.status === MediaRequestStatus.APPROVED) ||

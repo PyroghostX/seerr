@@ -377,7 +377,8 @@ export type JobId =
   | 'image-cache-cleanup'
   | 'availability-sync'
   | 'process-blocklisted-tags'
-  | 'sonarr-era-phases';
+  | 'sonarr-era-phases'
+  | 'tv-request-reconcile';
 
 export interface AllSettings {
   clientId: string;
@@ -621,6 +622,9 @@ class Settings {
         },
         'sonarr-era-phases': {
           schedule: '0 */5 * * * *',
+        },
+        'tv-request-reconcile': {
+          schedule: '0 30 * * * *',
         },
       },
       network: {
