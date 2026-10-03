@@ -9,6 +9,16 @@ const HOME_RELEASE_TYPES = [4, 5, 6];
 // available at home even if TMDB has no digital/physical entry for it.
 const ASSUME_RELEASED_AFTER_DAYS = 180;
 
+// TMDB production statuses for a movie that has not come out at all yet.
+// These often have no release date or release entries (e.g. a rumored
+// sequel), so the date-based checks below would miss them.
+const PRE_RELEASE_STATUSES = [
+  'Rumored',
+  'Planned',
+  'In Production',
+  'Post Production',
+];
+
 export interface MovieReleaseStatus {
   /** True when no digital, physical or TV release has happened yet. */
   isUnreleased: boolean;
@@ -32,7 +42,7 @@ const toTime = (value?: string): number | undefined => {
  * all, fall back to every region so a US-only digital release still counts.
  */
 export const getMovieReleaseStatus = (
-  movie: Pick<MovieDetails, 'releases' | 'releaseDate'> | undefined,
+  movie: Pick<MovieDetails, 'releases' | 'releaseDate' | 'status'> | undefined,
   region = 'US'
 ): MovieReleaseStatus => {
   if (!movie) {
@@ -65,6 +75,10 @@ export const getMovieReleaseStatus = (
   });
   if (homeReleased) {
     return { isUnreleased: false, digitalReleaseDate, homeReleaseDate };
+  }
+
+  if (PRE_RELEASE_STATUSES.includes(movie.status)) {
+    return { isUnreleased: true, digitalReleaseDate, homeReleaseDate };
   }
 
   // No home release on record: an old film is almost certainly available
