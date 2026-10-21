@@ -449,6 +449,18 @@ class SonarrAPI extends ServarrBase<{
       }
     );
 
+    // Monitoring a season does not monitor its episodes, and a season search
+    // skips unmonitored episodes, so an upgrade of a season whose episodes were
+    // unmonitored searched for nothing (The Terminal List S1, 2026-10-21).
+    if (chosen.size > 0) {
+      const episodeIds = (await this.getEpisodes(seriesId))
+        .filter((ep) => chosen.has(ep.seasonNumber) && !ep.monitored)
+        .map((ep) => ep.id);
+      if (episodeIds.length > 0) {
+        await this.monitorEpisodes(episodeIds);
+      }
+    }
+
     if (options.searchNow) {
       try {
         if (options.seasons && options.seasons.length > 0) {
