@@ -184,6 +184,20 @@ class EmailAgent
           break;
       }
 
+      // Upgrade requests (isUpgrade) re-download what is already there in
+      // 1080p; say so instead of looking like a new request for the title.
+      let event = payload.event;
+      if (payload.request.isUpgrade) {
+        body = body.replace(
+          /\brequest for the following/i,
+          'upgrade request (720p to 1080p) for the following'
+        );
+        event = event?.replace(
+          /\bRequest\b/,
+          'Upgrade Request (720p to 1080p)'
+        );
+      }
+
       return {
         template: path.join(
           __dirname,
@@ -193,7 +207,7 @@ class EmailAgent
           to: recipientEmail,
         },
         locals: {
-          event: payload.event,
+          event,
           body,
           mediaName: payload.subject,
           mediaExtra: payload.extra ?? [],
