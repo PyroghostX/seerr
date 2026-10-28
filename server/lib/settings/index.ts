@@ -241,6 +241,10 @@ export interface NotificationAgentDiscord extends NotificationAgentConfig {
     enableMentions: boolean;
     locale: AvailableLocale;
     useUserLocale: boolean;
+    /** Bot token for sending users their own notifications as DMs. */
+    botToken?: string;
+    /** Where the daily Morning Check posts; falls back to webhookUrl. */
+    morningCheckWebhookUrl?: string;
   };
 }
 
@@ -378,7 +382,8 @@ export type JobId =
   | 'availability-sync'
   | 'process-blocklisted-tags'
   | 'sonarr-era-phases'
-  | 'tv-request-reconcile';
+  | 'tv-request-reconcile'
+  | 'morning-check';
 
 export interface AllSettings {
   clientId: string;
@@ -500,6 +505,8 @@ class Settings {
               enableMentions: true,
               locale: 'en',
               useUserLocale: true,
+              botToken: '',
+              morningCheckWebhookUrl: '',
             },
           },
           slack: {
@@ -625,6 +632,9 @@ class Settings {
         },
         'tv-request-reconcile': {
           schedule: '0 30 * * * *',
+        },
+        'morning-check': {
+          schedule: '0 0 9 * * *',
         },
       },
       network: {

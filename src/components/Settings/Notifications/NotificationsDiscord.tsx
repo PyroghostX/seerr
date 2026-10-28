@@ -1,5 +1,6 @@
 import Button from '@app/components/Common/Button';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
+import SensitiveInput from '@app/components/Common/SensitiveInput';
 import NotificationTypeSelector from '@app/components/NotificationTypeSelector';
 import { availableLanguages } from '@app/context/LanguageContext';
 import useSettings from '@app/hooks/useSettings';
@@ -39,6 +40,12 @@ const messages = defineMessages('components.Settings.Notifications', {
   validationWebhookThreadId: 'You must provide a valid Discord Thread ID',
   validationTypes: 'You must select at least one notification type',
   enableMentions: 'Enable Mentions',
+  discordBotToken: 'Bot Token (direct messages)',
+  discordBotTokenTip:
+    'Optional. With a bot token, users who have a Discord ID in their profile get their own request notifications as a direct message from the bot instead of a mention in the channel. The bot must share a server with them.',
+  morningCheckWebhookUrl: 'Morning Check Webhook URL',
+  morningCheckWebhookUrlTip:
+    'Optional. Where the daily Morning Check (unfilled requests and missing episodes) posts. Defaults to the webhook above.',
 });
 
 const NotificationsDiscord = () => {
@@ -57,14 +64,18 @@ const NotificationsDiscord = () => {
       .nullable()
       .url(intl.formatMessage(messages.validationUrl)),
     webhookUrl: Yup.string()
-      .when('enabled', {
-        is: true,
+      .when(['enabled', 'botToken'], {
+        // A bot token alone can deliver direct messages
+        is: (enabled: boolean, botToken?: string) => enabled && !botToken,
         then: (schema) =>
           schema
             .nullable()
             .required(intl.formatMessage(messages.validationUrl)),
         otherwise: (schema) => schema.nullable(),
       })
+      .url(intl.formatMessage(messages.validationUrl)),
+    morningCheckWebhookUrl: Yup.string()
+      .nullable()
       .url(intl.formatMessage(messages.validationUrl)),
     webhookRoleId: Yup.string()
       .nullable()
@@ -99,6 +110,8 @@ const NotificationsDiscord = () => {
         enableMentions: data?.options.enableMentions,
         locale: data?.options.locale || 'en',
         useUserLocale: data?.options.useUserLocale ?? false,
+        botToken: data?.options.botToken ?? '',
+        morningCheckWebhookUrl: data?.options.morningCheckWebhookUrl ?? '',
       }}
       validationSchema={NotificationsDiscordSchema}
       onSubmit={async (values) => {
@@ -116,6 +129,8 @@ const NotificationsDiscord = () => {
               enableMentions: values.enableMentions,
               locale: values.locale,
               useUserLocale: values.useUserLocale,
+              botToken: values.botToken,
+              morningCheckWebhookUrl: values.morningCheckWebhookUrl,
             },
           });
 
@@ -169,6 +184,8 @@ const NotificationsDiscord = () => {
                 enableMentions: values.enableMentions,
                 locale: values.locale,
                 useUserLocale: values.useUserLocale,
+                botToken: values.botToken,
+                morningCheckWebhookUrl: values.morningCheckWebhookUrl,
               },
             });
 
@@ -214,7 +231,7 @@ const NotificationsDiscord = () => {
             <div className="form-row">
               <label htmlFor="name" className="text-label">
                 {intl.formatMessage(messages.webhookUrl)}
-                <span className="label-required">*</span>
+                {!values.botToken && <span className="label-required">*</span>}
                 <span className="label-tip">
                   {intl.formatMessage(messages.webhookUrlTip, {
                     DiscordWebhookLink: (msg: React.ReactNode) => (
@@ -338,6 +355,52 @@ const NotificationsDiscord = () => {
                   id="enableMentions"
                   name="enableMentions"
                 />
+              </div>
+            </div>
+            <div className="form-row">
+              <label htmlFor="botToken" className="text-label">
+                {intl.formatMessage(messages.discordBotToken)}
+                <span className="label-tip">
+                  {intl.formatMessage(messages.discordBotTokenTip)}
+                </span>
+              </label>
+              <div className="form-input-area">
+                <div className="form-input-field">
+                  <SensitiveInput
+                    as="field"
+                    id="botToken"
+                    name="botToken"
+                    type="text"
+                    autoComplete="off"
+                    data-form-type="other"
+                    data-1pignore="true"
+                    data-lpignore="true"
+                    data-bwignore="true"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="form-row">
+              <label htmlFor="morningCheckWebhookUrl" className="text-label">
+                {intl.formatMessage(messages.morningCheckWebhookUrl)}
+                <span className="label-tip">
+                  {intl.formatMessage(messages.morningCheckWebhookUrlTip)}
+                </span>
+              </label>
+              <div className="form-input-area">
+                <div className="form-input-field">
+                  <Field
+                    id="morningCheckWebhookUrl"
+                    name="morningCheckWebhookUrl"
+                    type="text"
+                    inputMode="url"
+                  />
+                </div>
+                {errors.morningCheckWebhookUrl &&
+                  touched.morningCheckWebhookUrl &&
+                  typeof errors.morningCheckWebhookUrl === 'string' && (
+                    <div className="error">{errors.morningCheckWebhookUrl}</div>
+                  )}
               </div>
             </div>
             <div className="form-row">

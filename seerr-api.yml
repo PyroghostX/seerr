@@ -1473,6 +1473,10 @@ components:
               type: string
             enableMentions:
               type: boolean
+            botToken:
+              type: string
+            morningCheckWebhookUrl:
+              type: string
     SlackSettings:
       type: object
       properties:

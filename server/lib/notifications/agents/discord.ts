@@ -23,6 +23,18 @@ import { BaseAgent } from './agent';
 const isValidSnowflake = (id: string): boolean =>
   DISCORD_SNOWFLAKE_REGEX.test(id);
 
+const DISCORD_API_URL = 'https://discord.com/api/v10';
+
+/**
+ * Discord IDs to mention in the channel post: everyone who would have been
+ * mentioned, minus the users who already got the notification as a direct
+ * message, without duplicates.
+ */
+export const channelMentionIds = (
+  ids: string[],
+  directMessaged: Set<string>
+): string[] => [...new Set(ids.filter((id) => !directMessaged.has(id)))];
+
 interface DiscordImageEmbed {
   url?: string;
   proxy_url?: string;
@@ -223,11 +235,62 @@ class DiscordAgent
   public shouldSend(): boolean {
     const settings = this.getSettings();
 
-    if (settings.enabled && settings.options.webhookUrl) {
+    // A bot token alone is enough: users still get their direct messages
+    // even without a channel webhook.
+    if (
+      settings.enabled &&
+      (settings.options.webhookUrl || settings.options.botToken)
+    ) {
       return true;
     }
 
     return false;
+  }
+
+  /**
+   * Sends the embed to each Discord user ID as a direct message from the
+   * bot. Returns the IDs that were delivered; failures are logged (without
+   * the token) and left for the caller to mention in the channel instead.
+   */
+  private async sendDirectMessages(
+    botToken: string,
+    discordIds: string[],
+    embed: DiscordRichEmbed,
+    type: Notification
+  ): Promise<Set<string>> {
+    const delivered = new Set<string>();
+    const headers = { Authorization: `Bot ${botToken}` };
+
+    for (const recipientId of discordIds) {
+      try {
+        const channel = await axios.post<{ id: string }>(
+          `${DISCORD_API_URL}/users/@me/channels`,
+          { recipient_id: recipientId },
+          { headers }
+        );
+
+        await axios.post(
+          `${DISCORD_API_URL}/channels/${channel.data.id}/messages`,
+          { embeds: [embed] },
+          { headers }
+        );
+
+        delivered.add(recipientId);
+      } catch (e) {
+        logger.warn(
+          'Failed to send Discord direct message; mentioning in the channel instead',
+          {
+            label: 'Notifications',
+            type: Notification[type],
+            recipientId,
+            errorMessage: e.message,
+            response: e?.response?.data,
+          }
+        );
+      }
+    }
+
+    return delivered;
   }
 
   public async send(
@@ -249,30 +312,49 @@ class DiscordAgent
       subject: payload.subject,
     });
 
-    const userMentions: string[] = [];
-
     try {
+      const notifyUserIds =
+        payload.notifyUser?.settings?.hasNotificationType(
+          NotificationAgentKey.DISCORD,
+          type
+        ) && payload.notifyUser.settings.discordIds?.length
+          ? payload.notifyUser.settings.discordIds.filter((id) =>
+              isValidSnowflake(id)
+            )
+          : [];
+
+      // With a bot token, the user being notified gets the embed as a direct
+      // message instead of a mention in the channel
+      let directMessaged = new Set<string>();
+
+      if (settings.options.botToken && notifyUserIds.length) {
+        directMessaged = await this.sendDirectMessages(
+          settings.options.botToken,
+          notifyUserIds,
+          this.buildEmbed(
+            type,
+            payload,
+            (payload.notifyUser?.settings?.locale ||
+              settings.options.locale) as AvailableLocale
+          ),
+          type
+        );
+      }
+
+      if (!settings.options.webhookUrl) {
+        return true;
+      }
+
+      const mentionIds: string[] = [];
+
       if (settings.options.enableMentions) {
-        if (payload.notifyUser) {
-          if (
-            payload.notifyUser.settings?.hasNotificationType(
-              NotificationAgentKey.DISCORD,
-              type
-            ) &&
-            payload.notifyUser.settings.discordIds?.length
-          ) {
-            const validIds = payload.notifyUser.settings.discordIds.filter(
-              (id) => isValidSnowflake(id)
-            );
-            userMentions.push(...validIds.map((id) => `<@${id}>`));
-          }
-        }
+        mentionIds.push(...notifyUserIds);
 
         if (payload.notifyAdmin) {
           const userRepository = getRepository(User);
           const users = await userRepository.find();
 
-          userMentions.push(
+          mentionIds.push(
             ...users
               .filter(
                 (user) =>
@@ -284,17 +366,14 @@ class DiscordAgent
                   shouldSendAdminNotification(type, user, payload)
               )
               .flatMap((user) =>
-                user
-                  .settings!.discordIds.filter((id) => isValidSnowflake(id))
-                  .map((id) => `<@${id}>`)
+                user.settings!.discordIds.filter((id) => isValidSnowflake(id))
               )
           );
         }
       }
 
-      const allowedUserIds = userMentions.map((mention) =>
-        mention.replace(/[<@>]/g, '')
-      );
+      const allowedUserIds = channelMentionIds(mentionIds, directMessaged);
+      const userMentions = allowedUserIds.map((id) => `<@${id}>`);
 
       const allowedRoleIds: string[] = [];
 

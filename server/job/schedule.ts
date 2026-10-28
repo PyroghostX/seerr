@@ -4,6 +4,10 @@ import availabilitySync from '@server/lib/availabilitySync';
 import downloadTracker from '@server/lib/downloadtracker';
 import { eraPhaseRunner } from '@server/lib/eraPhases';
 import ImageProxy from '@server/lib/imageproxy';
+import {
+  isMorningCheckRunning,
+  runMorningCheck,
+} from '@server/lib/morningCheck';
 import refreshToken from '@server/lib/refreshToken';
 import {
   jellyfinFullScanner,
@@ -303,6 +307,28 @@ export const startJobs = (): void => {
       });
     }),
     running: () => isTvRequestReconcileRunning(),
+  });
+
+  // Daily Discord summary of unfilled requests and missing episodes
+  // (see server/lib/morningCheck.ts)
+  scheduledJobs.push({
+    id: 'morning-check',
+    name: 'Morning Check',
+    type: 'process',
+    interval: 'days',
+    cronSchedule: jobs['morning-check'].schedule,
+    job: schedule.scheduleJob(jobs['morning-check'].schedule, () => {
+      logger.info('Starting scheduled job: Morning Check', {
+        label: 'Jobs',
+      });
+      runMorningCheck().catch((e) => {
+        logger.error('Failed to run Morning Check', {
+          label: 'Morning Check',
+          errorMessage: e.message,
+        });
+      });
+    }),
+    running: () => isMorningCheckRunning(),
   });
 
   logger.info('Scheduled jobs loaded', { label: 'Jobs' });

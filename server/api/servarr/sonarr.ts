@@ -109,6 +109,16 @@ export interface SonarrEpisodeFile {
   };
 }
 
+export interface SonarrMissingEpisode {
+  id: number;
+  seriesId: number;
+  seasonNumber: number;
+  episodeNumber: number;
+  title?: string;
+  airDateUtc?: string;
+  monitored?: boolean;
+}
+
 export interface AddSeriesOptions {
   tvdbid: number;
   title: string;
@@ -597,6 +607,28 @@ class SonarrAPI extends ServarrBase<{
         seriesId,
       });
       throw new Error('Failed to get episodes', { cause: e });
+    }
+  }
+
+  /**
+   * Monitored episodes Sonarr considers missing (aired, no file), one page
+   * of up to `pageSize` records.
+   */
+  public async getWantedMissing(
+    pageSize = 1000
+  ): Promise<SonarrMissingEpisode[]> {
+    try {
+      const response = await this.axios.get<{
+        records?: SonarrMissingEpisode[];
+      }>('/wanted/missing', {
+        params: { pageSize, monitored: true },
+      });
+      return response.data.records ?? [];
+    } catch (e) {
+      throw new Error(
+        `[Sonarr] Failed to retrieve missing episodes: ${e.message}`,
+        { cause: e }
+      );
     }
   }
 

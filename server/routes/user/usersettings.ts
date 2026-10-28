@@ -606,15 +606,20 @@ userSettingsRoutes.get<{ id: string }, UserSettingsNotificationsResponse>(
         return next({ status: 404, message: 'User not found.' });
       }
 
+      // Users can set their Discord IDs when they'd be mentioned in the
+      // channel or messaged directly by the bot
+      const discordUserNotifications =
+        settings?.discord.enabled &&
+        (settings.discord.options.enableMentions ||
+          !!settings.discord.options.botToken);
+
       return res.status(200).json({
         emailEnabled: settings.email.enabled,
         pgpKey: user.settings?.pgpKey,
-        discordEnabled:
-          settings?.discord.enabled && settings.discord.options.enableMentions,
-        discordEnabledTypes:
-          settings?.discord.enabled && settings.discord.options.enableMentions
-            ? settings.discord.types
-            : 0,
+        discordEnabled: discordUserNotifications,
+        discordEnabledTypes: discordUserNotifications
+          ? settings.discord.types
+          : 0,
         discordIds: user.settings?.discordIds ?? [],
         pushbulletAccessToken: user.settings?.pushbulletAccessToken,
         pushoverApplicationToken: user.settings?.pushoverApplicationToken,
