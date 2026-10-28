@@ -20,13 +20,16 @@ import logger from '@server/logger';
 import { airedEpisodeCount } from '@server/utils/airedEpisodes';
 import { getMovieReleaseStatus } from '@server/utils/movieReleaseStatus';
 import axios from 'axios';
-import { LessThan } from 'typeorm';
+import { Between } from 'typeorm';
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
 
-// A request this old that still isn't available gets reported.
+// A request this old that still isn't available gets reported, until it is
+// UNFILLED_MAX_AGE_MS old: older stuck requests were reported for two weeks
+// already and would bury the new ones in every message.
 export const UNFILLED_AFTER_MS = 24 * HOUR_MS;
+export const UNFILLED_MAX_AGE_MS = 14 * DAY_MS;
 // Missing episodes that aired between these two ages get reported: younger
 // ones are probably still downloading, older ones were reported already.
 export const MISSING_MIN_AGE_MS = 20 * HOUR_MS;
@@ -78,7 +81,8 @@ export function isUnfilledCandidate(
 
   if (
     Number.isNaN(createdAt) ||
-    now.getTime() - createdAt <= UNFILLED_AFTER_MS
+    now.getTime() - createdAt <= UNFILLED_AFTER_MS ||
+    now.getTime() - createdAt > UNFILLED_MAX_AGE_MS
   ) {
     return false;
   }
@@ -356,7 +360,10 @@ async function collectUnfilledRequests(
     where: {
       status: MediaRequestStatus.APPROVED,
       isUpgrade: false,
-      createdAt: LessThan(new Date(now.getTime() - UNFILLED_AFTER_MS)),
+      createdAt: Between(
+        new Date(now.getTime() - UNFILLED_MAX_AGE_MS),
+        new Date(now.getTime() - UNFILLED_AFTER_MS)
+      ),
     },
     order: { createdAt: 'ASC' },
   });
