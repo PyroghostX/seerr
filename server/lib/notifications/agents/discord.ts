@@ -276,6 +276,12 @@ class DiscordAgent
         );
 
         delivered.add(recipientId);
+        logger.info('Sent Discord direct message', {
+          label: 'Notifications',
+          type: Notification[type],
+          recipientId,
+          subject: embed.title,
+        });
       } catch (e) {
         logger.warn(
           'Failed to send Discord direct message; mentioning in the channel instead',
