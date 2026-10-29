@@ -1,3 +1,4 @@
+import AvailabilityMismatch from '@server/entity/AvailabilityMismatch';
 import { Blocklist } from '@server/entity/Blocklist';
 import DiscoverSlider from '@server/entity/DiscoverSlider';
 import Issue from '@server/entity/Issue';
@@ -25,6 +26,7 @@ import { DataSource } from 'typeorm';
 const DB_SSL_PREFIX = 'DB_SSL_';
 
 const entities = [
+  AvailabilityMismatch,
   Blocklist,
   DiscoverSlider,
   Issue,

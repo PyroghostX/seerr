@@ -8,6 +8,7 @@ import {
   DISCORD_CONTENT_LIMIT,
   buildMorningCheckMessage,
   filterRecentMissing,
+  formatMismatchLine,
   formatMissingLine,
   formatUnfilledLine,
   isMovieReleased,
@@ -355,5 +356,67 @@ describe('buildMorningCheckMessage', () => {
     assert.match(message, /requests not filled/);
     assert.match(message, /recently missing episodes/);
     assert.match(message, /…and \d+ more/);
+  });
+
+  it('renders the mismatch section with a link to the page', () => {
+    assert.equal(
+      buildMorningCheckMessage([], [], {
+        mismatchLines: ['• Show — S5: Plex 12, Sonarr 13'],
+        mismatchesUrl: 'https://seerr.example/mismatches',
+      }),
+      '**1 Plex/Sonarr mismatch:**\n• Show — S5: Plex 12, Sonarr 13\n' +
+        '<https://seerr.example/mismatches>'
+    );
+  });
+
+  it('puts the mismatch section after the other two', () => {
+    const message =
+      buildMorningCheckMessage(['• A'], ['• B — S1E1'], {
+        mismatchLines: ['• C — S1: Plex 1, Sonarr 2'],
+      }) ?? '';
+
+    assert.match(
+      message,
+      /not filled[\s\S]*recently missing[\s\S]*\*\*1 Plex\/Sonarr mismatch:\*\*\n• C — S1: Plex 1, Sonarr 2$/
+    );
+  });
+
+  it('caps the mismatch list and keeps the link within the limit', () => {
+    const long = (prefix: string, i: number) =>
+      `• ${prefix}${i} ${'x'.repeat(150)}`;
+    const mismatches = Array.from({ length: 18 }, (_, i) => long('M', i));
+    const capped =
+      buildMorningCheckMessage([], [], { mismatchLines: mismatches }) ?? '';
+
+    assert.match(capped, /^\*\*18 Plex\/Sonarr mismatches:\*\*/);
+    assert.doesNotMatch(capped, /• M15/);
+
+    const message =
+      buildMorningCheckMessage(
+        Array.from({ length: 15 }, (_, i) => long('R', i)),
+        Array.from({ length: 20 }, (_, i) => long('E', i)),
+        {
+          mismatchLines: mismatches,
+          mismatchesUrl: 'https://seerr.example/mismatches',
+        }
+      ) ?? '';
+
+    assert.ok(message.length <= DISCORD_CONTENT_LIMIT, `${message.length}`);
+    assert.match(message, /Plex\/Sonarr mismatches/);
+    assert.match(message, /<https:\/\/seerr\.example\/mismatches>$/);
+  });
+});
+
+describe('formatMismatchLine', () => {
+  it('shows the season and both counts', () => {
+    assert.equal(
+      formatMismatchLine({
+        title: 'Show',
+        seasonNumber: 5,
+        plexEpisodes: 12,
+        sonarrEpisodes: 13,
+      }),
+      '• Show — S5: Plex 12, Sonarr 13'
+    );
   });
 });

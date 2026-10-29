@@ -1,5 +1,9 @@
 import { MediaServerType } from '@server/constants/server';
 import blocklistedTagsProcessor from '@server/job/blocklistedTagsProcessor';
+import {
+  isAvailabilityCheckRunning,
+  runAvailabilityCheck,
+} from '@server/lib/availabilityMismatch';
 import availabilitySync from '@server/lib/availabilitySync';
 import downloadTracker from '@server/lib/downloadtracker';
 import { eraPhaseRunner } from '@server/lib/eraPhases';
@@ -329,6 +333,28 @@ export const startJobs = (): void => {
       });
     }),
     running: () => isMorningCheckRunning(),
+  });
+
+  // Compares Plex episode counts with Sonarr's files per season and records
+  // the seasons that disagree (see server/lib/availabilityMismatch.ts)
+  scheduledJobs.push({
+    id: 'availability-check',
+    name: 'Availability Check',
+    type: 'process',
+    interval: 'hours',
+    cronSchedule: jobs['availability-check'].schedule,
+    job: schedule.scheduleJob(jobs['availability-check'].schedule, () => {
+      logger.info('Starting scheduled job: Availability Check', {
+        label: 'Jobs',
+      });
+      runAvailabilityCheck().catch((e) => {
+        logger.error('Failed to run Availability Check', {
+          label: 'Availability Check',
+          errorMessage: e.message,
+        });
+      });
+    }),
+    running: () => isAvailabilityCheckRunning(),
   });
 
   logger.info('Scheduled jobs loaded', { label: 'Jobs' });

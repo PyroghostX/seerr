@@ -383,7 +383,8 @@ export type JobId =
   | 'process-blocklisted-tags'
   | 'sonarr-era-phases'
   | 'tv-request-reconcile'
-  | 'morning-check';
+  | 'morning-check'
+  | 'availability-check';
 
 export interface AllSettings {
   clientId: string;
@@ -635,6 +636,9 @@ class Settings {
         },
         'morning-check': {
           schedule: '0 0 9 * * *',
+        },
+        'availability-check': {
+          schedule: '0 20 */6 * * *',
         },
       },
       network: {

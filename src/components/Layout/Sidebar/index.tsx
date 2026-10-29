@@ -4,6 +4,7 @@ import { Permission, useUser } from '@app/hooks/useUser';
 import defineMessages from '@app/utils/defineMessages';
 import { Transition, TransitionChild } from '@headlessui/react';
 import {
+  ArrowsRightLeftIcon,
   ClockIcon,
   CogIcon,
   ExclamationTriangleIcon,
@@ -27,6 +28,7 @@ export const menuMessages = defineMessages('components.Layout.Sidebar', {
   requests: 'Requests',
   blocklist: 'Blocklist',
   issues: 'Issues',
+  mismatches: 'Mismatches',
   users: 'Users',
   settings: 'Settings',
 });
@@ -98,6 +100,13 @@ const SidebarLinks: SidebarLinkProps[] = [
       Permission.VIEW_ISSUES,
     ],
     permissionType: 'or',
+  },
+  {
+    href: '/mismatches',
+    messagesKey: 'mismatches',
+    svgIcon: <ArrowsRightLeftIcon className="mr-3 h-6 w-6" />,
+    activeRegExp: /^\/mismatches/,
+    requiredPermission: Permission.ADMIN,
   },
   {
     href: '/users',

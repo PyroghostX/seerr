@@ -40,6 +40,8 @@ tags:
     description: Collection of media to watch later
   - name: blocklist
     description: Blocklisted media from discovery page.
+  - name: mismatch
+    description: Seasons whose episode count in Plex differs from Sonarr's files (admin only).
 servers:
   - url: '{server}/api/v1'
     variables:
@@ -48,6 +50,51 @@ servers:
 
 components:
   schemas:
+    AvailabilityMismatch:
+      type: object
+      properties:
+        id:
+          type: number
+          example: 1
+        mediaId:
+          type: number
+          example: 12
+        tmdbId:
+          type: number
+          example: 1104
+        title:
+          type: string
+          nullable: true
+          example: Mad Men
+        seasonNumber:
+          type: number
+          example: 5
+        plexEpisodes:
+          type: number
+          example: 12
+        sonarrEpisodes:
+          type: number
+          example: 13
+        status:
+          type: string
+          enum: [open, fine, fixed, resolved]
+        firstSeenAt:
+          type: string
+          example: '2026-10-28T15:00:00.000Z'
+        updatedAt:
+          type: string
+          example: '2026-10-28T15:00:00.000Z'
+        resolvedAt:
+          type: string
+          nullable: true
+        resolvedBy:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: number
+            displayName:
+              type: string
     Blocklist:
       type: object
       properties:
@@ -5100,6 +5147,101 @@ paths:
           description: Successfully removed collection from blocklist
         '500':
           description: Error removing collection from blocklist
+  /mismatch:
+    get:
+      summary: Get Plex/Sonarr availability mismatches
+      description: |
+        Returns seasons whose episode count in Plex differs from the episode file count in Sonarr, as found by the Availability Check job. Requires the `ADMIN` permission.
+      tags:
+        - mismatch
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [open, fine, fixed, resolved, all]
+            default: open
+      responses:
+        '200':
+          description: Mismatches returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AvailabilityMismatch'
+  /mismatch/{mismatchId}/fine:
+    post:
+      summary: Mark a mismatch as fine
+      description: |
+        Marks the mismatch as expected so it is no longer reported while the counts stay the same. When Sonarr has a file for every aired episode of the season, the season is also marked available in Seerr without notifying anyone. Requires the `ADMIN` permission.
+      tags:
+        - mismatch
+      parameters:
+        - in: path
+          name: mismatchId
+          required: true
+          schema:
+            type: number
+            example: 1
+      responses:
+        '200':
+          description: Mismatch marked as fine
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mismatch:
+                    $ref: '#/components/schemas/AvailabilityMismatch'
+                  markedAvailable:
+                    type: boolean
+                    example: true
+        '404':
+          description: Mismatch not found
+  /mismatch/{mismatchId}/fixed:
+    post:
+      summary: Check a mismatch again after fixing it
+      description: |
+        Compares the show in Plex and Sonarr again right away. If the season matches now the mismatch is marked fixed; otherwise it stays open with the current counts and a 409 is returned. Requires the `ADMIN` permission.
+      tags:
+        - mismatch
+      parameters:
+        - in: path
+          name: mismatchId
+          required: true
+          schema:
+            type: number
+            example: 1
+      responses:
+        '200':
+          description: The season matches now and the mismatch is marked fixed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mismatch:
+                    $ref: '#/components/schemas/AvailabilityMismatch'
+        '404':
+          description: Mismatch not found
+        '409':
+          description: The counts still differ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Still Plex 12, Sonarr 13
+                  mismatch:
+                    $ref: '#/components/schemas/AvailabilityMismatch'
+        '500':
+          description: Plex or Sonarr could not be reached
   /watchlist:
     post:
       summary: Add media to watchlist

@@ -89,6 +89,7 @@ const messages: { [messageName: string]: MessageDescriptor } = defineMessages(
     'sonarr-era-phases': 'Sonarr Era Phases',
     'tv-request-reconcile': 'TV Request Reconcile',
     'morning-check': 'Morning Check',
+    'availability-check': 'Availability Check',
     'download-sync': 'Download Sync',
     'download-sync-reset': 'Download Sync Reset',
     'image-cache-cleanup': 'Image Cache Cleanup',

@@ -12,6 +12,7 @@ import {
   MediaType,
 } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
+import AvailabilityMismatch from '@server/entity/AvailabilityMismatch';
 import type Media from '@server/entity/Media';
 import { MediaRequest } from '@server/entity/MediaRequest';
 import type Season from '@server/entity/Season';
@@ -20,7 +21,7 @@ import logger from '@server/logger';
 import { airedEpisodeCount } from '@server/utils/airedEpisodes';
 import { getMovieReleaseStatus } from '@server/utils/movieReleaseStatus';
 import axios from 'axios';
-import { Between } from 'typeorm';
+import { Between, LessThanOrEqual } from 'typeorm';
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
@@ -34,9 +35,13 @@ export const UNFILLED_MAX_AGE_MS = 180 * DAY_MS;
 // ones are probably still downloading, older ones were reported already.
 export const MISSING_MIN_AGE_MS = 20 * HOUR_MS;
 export const MISSING_MAX_AGE_MS = 14 * DAY_MS;
+// Plex/Sonarr mismatches younger than this aren't reported yet: Plex may
+// simply not have scanned a new file.
+export const MISMATCH_GRACE_MS = 6 * HOUR_MS;
 
 export const UNFILLED_LINE_CAP = 15;
 export const MISSING_LINE_CAP = 20;
+export const MISMATCH_LINE_CAP = 15;
 // Discord rejects webhook messages whose content is over 2000 characters.
 export const DISCORD_CONTENT_LIMIT = 2000;
 const MAX_LINE_LENGTH = 200;
@@ -230,6 +235,19 @@ export function formatMissingLine(line: MissingEpisodeLine): string {
   );
 }
 
+export function formatMismatchLine(
+  line: Pick<
+    AvailabilityMismatch,
+    'title' | 'seasonNumber' | 'plexEpisodes' | 'sonarrEpisodes'
+  >
+): string {
+  return truncate(
+    `• ${line.title || 'Unknown series'} — S${line.seasonNumber}: Plex ${
+      line.plexEpisodes
+    }, Sonarr ${line.sonarrEpisodes}`
+  );
+}
+
 function truncate(text: string): string {
   return text.length > MAX_LINE_LENGTH
     ? `${text.slice(0, MAX_LINE_LENGTH - 1)}…`
@@ -250,20 +268,27 @@ function renderSection(header: string, lines: string[], cap: number): string {
 
 /**
  * The whole Morning Check message, or null when there is nothing to report.
- * Lists are capped (15 requests, 20 episodes) and trimmed further, longest
- * list first, until the message fits Discord's content limit.
+ * Lists are capped (15 requests, 20 episodes, 15 mismatches) and trimmed
+ * further, longest list first, until the message fits Discord's content
+ * limit. The mismatch section ends with a link to the Mismatches page when
+ * one is given.
  */
 export function buildMorningCheckMessage(
   unfilledLines: string[],
   missingLines: string[],
-  limit = DISCORD_CONTENT_LIMIT
+  {
+    mismatchLines = [],
+    mismatchesUrl,
+    limit = DISCORD_CONTENT_LIMIT,
+  }: { mismatchLines?: string[]; mismatchesUrl?: string; limit?: number } = {}
 ): string | null {
-  if (!unfilledLines.length && !missingLines.length) {
+  if (!unfilledLines.length && !missingLines.length && !mismatchLines.length) {
     return null;
   }
 
   let unfilledCap = Math.min(UNFILLED_LINE_CAP, unfilledLines.length);
   let missingCap = Math.min(MISSING_LINE_CAP, missingLines.length);
+  let mismatchCap = Math.min(MISMATCH_LINE_CAP, mismatchLines.length);
 
   const render = (): string => {
     const sections: string[] = [];
@@ -292,14 +317,37 @@ export function buildMorningCheckMessage(
       );
     }
 
+    if (mismatchLines.length) {
+      let section = renderSection(
+        `**${mismatchLines.length} Plex/Sonarr ${
+          mismatchLines.length === 1 ? 'mismatch' : 'mismatches'
+        }:**`,
+        mismatchLines,
+        mismatchCap
+      );
+
+      if (mismatchesUrl) {
+        section += `\n<${mismatchesUrl}>`;
+      }
+
+      sections.push(section);
+    }
+
     return sections.join('\n\n');
   };
 
   let message = render();
 
-  while (message.length > limit && (unfilledCap > 0 || missingCap > 0)) {
-    if (missingCap >= unfilledCap) {
+  while (
+    message.length > limit &&
+    (unfilledCap > 0 || missingCap > 0 || mismatchCap > 0)
+  ) {
+    const largest = Math.max(unfilledCap, missingCap, mismatchCap);
+
+    if (missingCap === largest) {
       missingCap--;
+    } else if (mismatchCap === largest) {
+      mismatchCap--;
     } else {
       unfilledCap--;
     }
@@ -497,9 +545,24 @@ async function collectMissingEpisodes(
 }
 
 /**
+ * Open Plex/Sonarr mismatches first seen at least MISMATCH_GRACE_MS ago,
+ * sorted by title then season.
+ */
+async function collectMismatches(now: Date): Promise<AvailabilityMismatch[]> {
+  return getRepository(AvailabilityMismatch).find({
+    where: {
+      status: 'open',
+      firstSeenAt: LessThanOrEqual(new Date(now.getTime() - MISMATCH_GRACE_MS)),
+    },
+    order: { title: 'ASC', seasonNumber: 'ASC' },
+  });
+}
+
+/**
  * Daily Discord summary of approved requests still not filled after a day
- * (released movies, TV with aired but unavailable seasons) and episodes
- * Sonarr has been missing for a while. Sends nothing when both are empty.
+ * (released movies, TV with aired but unavailable seasons), episodes Sonarr
+ * has been missing for a while and seasons whose Plex and Sonarr episode
+ * counts disagree. Sends nothing when all three are empty.
  */
 export async function runMorningCheck(): Promise<void> {
   if (running) {
@@ -521,14 +584,22 @@ export async function runMorningCheck(): Promise<void> {
     const now = new Date();
     const unfilled = await collectUnfilledRequests(now);
     const missing = await collectMissingEpisodes(now);
+    const mismatches = await collectMismatches(now);
+    const settings = getSettings();
+    const applicationUrl = settings.main.applicationUrl?.replace(/\/+$/, '');
 
     const message = buildMorningCheckMessage(
       unfilled.map((line) => formatUnfilledLine(line, now)),
-      missing.map(formatMissingLine)
+      missing.map(formatMissingLine),
+      {
+        mismatchLines: mismatches.map(formatMismatchLine),
+        mismatchesUrl: applicationUrl
+          ? `${applicationUrl}/mismatches`
+          : undefined,
+      }
     );
 
     if (message) {
-      const settings = getSettings();
       const { botUsername, botAvatarUrl } =
         settings.notifications.agents.discord.options;
 
@@ -544,6 +615,7 @@ export async function runMorningCheck(): Promise<void> {
       label: 'Morning Check',
       unfilledRequests: unfilled.length,
       missingEpisodes: missing.length,
+      mismatches: mismatches.length,
       sent: !!message,
     });
   } finally {
