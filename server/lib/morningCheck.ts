@@ -26,10 +26,10 @@ const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
 
 // A request this old that still isn't available gets reported, until it is
-// UNFILLED_MAX_AGE_MS old: older stuck requests were reported for two weeks
+// UNFILLED_MAX_AGE_MS old: older stuck requests were reported for months
 // already and would bury the new ones in every message.
 export const UNFILLED_AFTER_MS = 24 * HOUR_MS;
-export const UNFILLED_MAX_AGE_MS = 14 * DAY_MS;
+export const UNFILLED_MAX_AGE_MS = 180 * DAY_MS;
 // Missing episodes that aired between these two ages get reported: younger
 // ones are probably still downloading, older ones were reported already.
 export const MISSING_MIN_AGE_MS = 20 * HOUR_MS;

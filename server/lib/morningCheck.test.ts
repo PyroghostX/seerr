@@ -61,9 +61,12 @@ describe('isUnfilledCandidate', () => {
     );
   });
 
-  it('skips requests more than 14 days old', () => {
+  it('skips requests more than 180 days old', () => {
     assert.equal(
-      isUnfilledCandidate(makeRequest({ createdAt: ago(15 * 24 * HOUR) }), NOW),
+      isUnfilledCandidate(
+        makeRequest({ createdAt: ago(181 * 24 * HOUR) }),
+        NOW
+      ),
       false
     );
   });
