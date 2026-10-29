@@ -11,6 +11,7 @@ import type {
   MediaResultsResponse,
   MediaWatchDataResponse,
 } from '@server/interfaces/api/mediaInterfaces';
+import { silenceAvailableNotifications } from '@server/lib/notificationSilence';
 import { Permission } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -117,6 +118,12 @@ mediaRoutes.post<
     }
 
     const is4k = String(req.body.is4k) === 'true';
+
+    // "Mark as Available (no notification)": requests still complete, but
+    // their requesters aren't told
+    if (req.params.status === 'available' && req.body.notify === false) {
+      silenceAvailableNotifications(media.id);
+    }
 
     switch (req.params.status) {
       case 'available':

@@ -69,6 +69,7 @@ const messages = defineMessages('components.ManageSlideOver', {
   removemediaerror: 'Something went wrong while removing the media.',
   downloadstatus: 'Downloads',
   markavailable: 'Mark as Available',
+  markavailablesilent: 'Mark as Available (no notification)',
   mark4kavailable: 'Mark as Available in 4K',
   markallseasonsavailable: 'Mark All Seasons as Available',
   markallseasons4kavailable: 'Mark All Seasons as Available in 4K',
@@ -210,10 +211,11 @@ const ManageSlideOver = ({
     return false;
   };
 
-  const markAvailable = async (is4k = false) => {
+  const markAvailable = async (is4k = false, notify = true) => {
     if (data.mediaInfo) {
       await axios.post(`/api/v1/media/${data.mediaInfo?.id}/available`, {
         is4k,
+        notify,
         ...(mediaType === 'tv' && {
           seasons: data.seasons.filter((season) => season.seasonNumber !== 0),
         }),
@@ -694,6 +696,18 @@ const ManageSlideOver = ({
                           ? messages.markavailable
                           : messages.markallseasonsavailable
                       )}
+                    </span>
+                  </Button>
+                )}
+                {data?.mediaInfo.status !== MediaStatus.AVAILABLE && (
+                  <Button
+                    onClick={() => markAvailable(false, false)}
+                    className="w-full"
+                    buttonType="default"
+                  >
+                    <CheckCircleIcon />
+                    <span>
+                      {intl.formatMessage(messages.markavailablesilent)}
                     </span>
                   </Button>
                 )}

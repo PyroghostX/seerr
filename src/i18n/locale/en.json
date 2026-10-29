@@ -321,6 +321,7 @@
   "components.ManageSlideOver.markallseasons4kavailable": "Mark All Seasons as Available in 4K",
   "components.ManageSlideOver.markallseasonsavailable": "Mark All Seasons as Available",
   "components.ManageSlideOver.markavailable": "Mark as Available",
+  "components.ManageSlideOver.markavailablesilent": "Mark as Available (no notification)",
   "components.ManageSlideOver.movie": "movie",
   "components.ManageSlideOver.openarr": "Open in {arr}",
   "components.ManageSlideOver.openarr4k": "Open in 4K {arr}",

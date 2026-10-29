@@ -20,6 +20,7 @@ import Season from '@server/entity/Season';
 import SeasonRequest from '@server/entity/SeasonRequest';
 import type { EraPlan } from '@server/lib/eraPlan';
 import { parseEraPlan, serializeEraPlan } from '@server/lib/eraPlan';
+import { isAvailableNotificationSilenced } from '@server/lib/notificationSilence';
 import notificationManager, { Notification } from '@server/lib/notifications';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -50,6 +51,15 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
     entity: MediaRequest,
     event?: UpdateEvent<MediaRequest>
   ) {
+    if (isAvailableNotificationSilenced(entity.media.id)) {
+      logger.info('Marked available without notifying the requester', {
+        label: 'Notifications',
+        requestId: entity.id,
+        mediaId: entity.media.id,
+      });
+      return;
+    }
+
     // Get fresh media state using event manager
     let latestMedia: Media | null = null;
     if (event?.manager) {
@@ -109,6 +119,15 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
     entity: MediaRequest,
     event?: UpdateEvent<MediaRequest>
   ) {
+    if (isAvailableNotificationSilenced(entity.media.id)) {
+      logger.info('Marked available without notifying the requester', {
+        label: 'Notifications',
+        requestId: entity.id,
+        mediaId: entity.media.id,
+      });
+      return;
+    }
+
     // Get fresh media state with seasons using event manager
     let latestMedia: Media | null = null;
     if (event?.manager) {
