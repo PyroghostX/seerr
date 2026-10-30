@@ -288,6 +288,23 @@ describe('filterRecentMissing', () => {
 });
 
 describe('formatUnfilledLine', () => {
+  it('adds the Seerr ID after the title', () => {
+    assert.equal(
+      formatUnfilledLine(
+        {
+          title: 'Show',
+          year: '2025',
+          seerrId: 'tv/123',
+          requestedBy: 'alex',
+          createdAt: ago(2 * DAY),
+          missingSeasons: [1],
+        },
+        NOW
+      ),
+      '• Show (2025) [tv/123] — requested by alex, 2 days ago — S1'
+    );
+  });
+
   it('formats a movie line', () => {
     assert.equal(
       formatUnfilledLine(

@@ -49,6 +49,8 @@ const MAX_LINE_LENGTH = 200;
 export interface UnfilledRequestLine {
   title: string;
   year?: string;
+  /** Seerr page path, e.g. "tv/271489", so same-named titles can be told apart. */
+  seerrId?: string;
   requestedBy: string;
   createdAt: Date;
   /** Requested TV seasons that have aired but are not available yet. */
@@ -217,7 +219,12 @@ export function formatUnfilledLine(
     1,
     Math.floor((now.getTime() - new Date(line.createdAt).getTime()) / DAY_MS)
   );
-  const title = line.year ? `${line.title} (${line.year})` : line.title;
+  let title = line.year ? `${line.title} (${line.year})` : line.title;
+
+  if (line.seerrId) {
+    title += ` [${line.seerrId}]`;
+  }
+
   let text = `• ${title} — requested by ${line.requestedBy}, ${days} ${
     days === 1 ? 'day' : 'days'
   } ago`;
@@ -453,6 +460,7 @@ async function collectUnfilledRequests(
         lines.push({
           title: movie.title,
           year: movie.release_date?.slice(0, 4) || undefined,
+          seerrId: `movie/${media.tmdbId}`,
           requestedBy,
           createdAt: request.createdAt,
         });
@@ -491,6 +499,7 @@ async function collectUnfilledRequests(
         lines.push({
           title: show.name,
           year: show.first_air_date?.slice(0, 4) || undefined,
+          seerrId: `tv/${media.tmdbId}`,
           requestedBy,
           createdAt: request.createdAt,
           missingSeasons,
