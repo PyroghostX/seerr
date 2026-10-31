@@ -14,7 +14,7 @@ import {
   seasonAirYear,
   serializeEraPlan,
 } from '@server/lib/eraPlan';
-import { notFoundMessage } from '@server/lib/notFoundPlan';
+import { NOT_FOUND_MESSAGE } from '@server/lib/notFoundPlan';
 import notificationManager, { Notification } from '@server/lib/notifications';
 import { Permission } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
@@ -1125,7 +1125,7 @@ export class MediaRequest {
           }`,
           message:
             type === Notification.MEDIA_NOT_FOUND
-              ? notFoundMessage(movie.title, [], entity.is4k)
+              ? NOT_FOUND_MESSAGE
               : truncate(movie.overview, {
                   length: 500,
                   separator: /\s/,
@@ -1156,7 +1156,7 @@ export class MediaRequest {
           }`,
           message:
             type === Notification.MEDIA_NOT_FOUND
-              ? notFoundMessage(tv.name, seasonNumbers, entity.is4k)
+              ? NOT_FOUND_MESSAGE
               : truncate(tv.overview, {
                   length: 500,
                   separator: /\s/,

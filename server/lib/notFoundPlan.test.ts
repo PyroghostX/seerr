@@ -8,7 +8,7 @@ import type {
   PlanInput,
   PlanRequest,
 } from '@server/lib/notFoundPlan';
-import { notFoundMessage, planNotFoundClose } from '@server/lib/notFoundPlan';
+import { planNotFoundClose } from '@server/lib/notFoundPlan';
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
@@ -300,26 +300,5 @@ describe('planNotFoundClose: series', () => {
     });
 
     assert.deepStrictEqual(result.closeRequestIds, [1, 2]);
-  });
-});
-
-describe('notFoundMessage', () => {
-  it('reads as a sentence for a movie', () => {
-    assert.strictEqual(
-      notFoundMessage('Test Movie', [], false),
-      "The system searched for Test Movie but could not find it, so your request has been closed. It can't be requested again."
-    );
-  });
-
-  it('names the seasons and the 4K version', () => {
-    assert.match(
-      notFoundMessage('Test Show', [3, 1, 2], true),
-      /searched for the 4K version of Test Show \(Seasons 1, 2 and 3\) but/
-    );
-    assert.match(
-      notFoundMessage('Test Show', [0, 2], false),
-      /Test Show \(Season 2 and Specials\)/
-    );
-    assert.match(notFoundMessage('Test Show', [0], false), /\(Specials\)/);
   });
 });

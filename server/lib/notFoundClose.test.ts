@@ -283,8 +283,7 @@ describe('closeRequestAsNotFound: movies', () => {
         type: Notification.MEDIA_NOT_FOUND,
         to: alex.id,
         admin: false,
-        message:
-          "The system searched for Test Movie but could not find it, so your request has been closed. It can't be requested again.",
+        message: 'Sadly the system could not find your request.',
         extra: undefined,
       },
     ]);
@@ -469,9 +468,9 @@ describe('closeRequestAsNotFound: series', () => {
       MediaStatus.BLOCKLISTED
     );
     assert.strictEqual(await getRepository(Blocklist).count(), 1);
-    assert.match(
-      notifications()[0].message ?? '',
-      /Test Show \(Seasons 1 and 2\) but could not find it/
+    assert.strictEqual(
+      notifications()[0].message,
+      'Sadly the system could not find your request.'
     );
     assert.deepStrictEqual(notifications()[0].extra, [
       { name: 'Requested Seasons', value: '1, 2' },
@@ -514,7 +513,6 @@ describe('closeRequestAsNotFound: series', () => {
       MediaRequestStatus.PENDING
     );
 
-    assert.match(notifications()[0].message ?? '', /\(Season 2\)/);
     assert.deepStrictEqual(notifications()[0].extra, [
       { name: 'Requested Seasons', value: '2' },
     ]);

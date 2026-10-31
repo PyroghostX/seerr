@@ -19,7 +19,7 @@ type BuildMessage = (
 const payload = {
   event: 'Movie Could Not Be Found',
   subject: 'Test Movie (2020)',
-  message: 'The system searched for Test Movie but could not find it.',
+  message: 'Sadly the system could not find your request.',
   notifyAdmin: false,
   notifySystem: true,
   media: { mediaType: MediaType.MOVIE, tmdbId: 100 },
@@ -62,9 +62,7 @@ describe('EmailAgent, not found notification', () => {
     );
 
     const html = await render(template, 'html', locals);
-    assert.ok(
-      html.includes('The system searched for Test Movie but could not find it.')
-    );
+    assert.ok(html.includes('Sadly the system could not find your request.'));
     assert.ok(html.includes('Test Movie (2020)'));
   });
 

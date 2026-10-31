@@ -175,31 +175,5 @@ export const planNotFoundClose = ({
   };
 };
 
-const formatSeasons = (seasons: number[]): string => {
-  const names = seasons
-    .filter((season) => season !== 0)
-    .sort((a, b) => a - b)
-    .map(String);
-  const numbered =
-    names.length > 1
-      ? `Seasons ${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
-      : names.length === 1
-        ? `Season ${names[0]}`
-        : '';
-
-  return seasons.includes(0)
-    ? numbered
-      ? `${numbered} and Specials`
-      : 'Specials'
-    : numbered;
-};
-
-export const notFoundMessage = (
-  title: string,
-  seasons: number[],
-  is4k: boolean
-): string => {
-  const what = seasons.length ? `${title} (${formatSeasons(seasons)})` : title;
-
-  return `The system searched for ${is4k ? `the 4K version of ${what}` : what} but could not find it, so your request has been closed. It can't be requested again.`;
-};
+export const NOT_FOUND_MESSAGE =
+  'Sadly the system could not find your request.';
