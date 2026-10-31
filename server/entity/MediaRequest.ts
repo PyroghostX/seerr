@@ -14,6 +14,7 @@ import {
   seasonAirYear,
   serializeEraPlan,
 } from '@server/lib/eraPlan';
+import { notFoundMessage } from '@server/lib/notFoundPlan';
 import notificationManager, { Notification } from '@server/lib/notifications';
 import { Permission } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
@@ -192,7 +193,12 @@ export class MediaRequest {
         mediaType: requestBody.mediaType,
       });
     } else {
-      if (media.status === MediaStatus.BLOCKLISTED) {
+      // A full blocklist sets both qualities; a title closed as not found at
+      // one quality while the other exists sets only that quality's status.
+      if (
+        media[requestBody.is4k ? 'status4k' : 'status'] ===
+        MediaStatus.BLOCKLISTED
+      ) {
         logger.warn('Request for media blocked due to being blocklisted', {
           tmdbId: tmdbMedia.id,
           mediaType: requestBody.mediaType,
@@ -235,7 +241,8 @@ export class MediaRequest {
       if (
         requestBody.mediaType === MediaType.MOVIE &&
         existing[0].status !== MediaRequestStatus.DECLINED &&
-        existing[0].status !== MediaRequestStatus.COMPLETED
+        existing[0].status !== MediaRequestStatus.COMPLETED &&
+        existing[0].status !== MediaRequestStatus.CLOSED
       ) {
         logger.warn('Duplicate request for media blocked', {
           tmdbId: tmdbMedia.id,
@@ -501,7 +508,8 @@ export class MediaRequest {
             (request) =>
               request.is4k === requestBody.is4k &&
               request.status !== MediaRequestStatus.DECLINED &&
-              request.status !== MediaRequestStatus.COMPLETED
+              request.status !== MediaRequestStatus.COMPLETED &&
+              request.status !== MediaRequestStatus.CLOSED
           )
           .reduce((seasons, request) => {
             const combinedSeasons = request.seasons.map(
@@ -983,10 +991,13 @@ export class MediaRequest {
       // A show rolls up to AVAILABLE once every aired season is present, so
       // for TV also require each requested season to be available itself.
       const statusKey = this.is4k ? 'status4k' : 'status';
+      const openSeasons = (this.seasons ?? []).filter(
+        (season) => season.status !== MediaRequestStatus.CLOSED
+      );
       const requestedSeasonsAvailable =
         this.type !== MediaType.TV ||
-        ((this.seasons ?? []).length > 0 &&
-          (this.seasons ?? []).every((requestSeason) =>
+        (openSeasons.length > 0 &&
+          openSeasons.every((requestSeason) =>
             media.seasons?.some(
               (mediaSeason) =>
                 mediaSeason.seasonNumber === requestSeason.seasonNumber &&
@@ -1094,6 +1105,10 @@ export class MediaRequest {
         case Notification.MEDIA_FAILED:
           event = `${entity.is4k ? '4K ' : ''}${mediaType} Request Failed`;
           break;
+        case Notification.MEDIA_NOT_FOUND:
+          event = `${entity.is4k ? '4K ' : ''}${mediaType} Could Not Be Found`;
+          notifyAdmin = false;
+          break;
       }
 
       if (entity.type === MediaType.MOVIE) {
@@ -1108,15 +1123,27 @@ export class MediaRequest {
           subject: `${movie.title}${
             movie.release_date ? ` (${movie.release_date.slice(0, 4)})` : ''
           }`,
-          message: truncate(movie.overview, {
-            length: 500,
-            separator: /\s/,
-            omission: '…',
-          }),
+          message:
+            type === Notification.MEDIA_NOT_FOUND
+              ? notFoundMessage(movie.title, [], entity.is4k)
+              : truncate(movie.overview, {
+                  length: 500,
+                  separator: /\s/,
+                  omission: '…',
+                }),
           image: `https://image.tmdb.org/t/p/w600_and_h900_bestv2${movie.poster_path}`,
         });
       } else if (entity.type === MediaType.TV) {
         const tv = await tmdb.getTvShow({ tvId: media.tmdbId });
+        // Name only the seasons this requester lost, not the available ones
+        const seasonNumbers = entity.seasons
+          .filter(
+            (season) =>
+              type !== Notification.MEDIA_NOT_FOUND ||
+              season.status === MediaRequestStatus.CLOSED
+          )
+          .map((season) => season.seasonNumber);
+
         notificationManager.sendNotification(type, {
           media,
           request: entity,
@@ -1127,18 +1154,19 @@ export class MediaRequest {
           subject: `${tv.name}${
             tv.first_air_date ? ` (${tv.first_air_date.slice(0, 4)})` : ''
           }`,
-          message: truncate(tv.overview, {
-            length: 500,
-            separator: /\s/,
-            omission: '…',
-          }),
+          message:
+            type === Notification.MEDIA_NOT_FOUND
+              ? notFoundMessage(tv.name, seasonNumbers, entity.is4k)
+              : truncate(tv.overview, {
+                  length: 500,
+                  separator: /\s/,
+                  omission: '…',
+                }),
           image: `https://image.tmdb.org/t/p/w600_and_h900_bestv2${tv.poster_path}`,
           extra: [
             {
               name: 'Requested Seasons',
-              value: entity.seasons
-                .map((season) => season.seasonNumber)
-                .join(', '),
+              value: seasonNumbers.join(', '),
             },
           ],
         });

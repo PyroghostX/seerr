@@ -18,6 +18,7 @@ import {
   AfterLoad,
   Column,
   Entity,
+  In,
   Not,
   OneToMany,
   OneToOne,
@@ -298,7 +299,9 @@ export class User {
             },
             ...(movieQuotaDays ? { createdAt: AfterDate(movieDate) } : {}),
             type: MediaType.MOVIE,
-            status: Not(MediaRequestStatus.DECLINED),
+            status: Not(
+              In([MediaRequestStatus.DECLINED, MediaRequestStatus.CLOSED])
+            ),
             ignoreQuota: false,
           },
         })
@@ -324,8 +327,8 @@ export class User {
       .andWhere('requestedBy.id = :userId', {
         userId: this.id,
       })
-      .andWhere('request.status != :declinedStatus', {
-        declinedStatus: MediaRequestStatus.DECLINED,
+      .andWhere('request.status NOT IN (:...freeStatuses)', {
+        freeStatuses: [MediaRequestStatus.DECLINED, MediaRequestStatus.CLOSED],
       });
 
     if (tvQuotaDays) {

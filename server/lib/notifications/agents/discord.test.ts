@@ -141,6 +141,19 @@ describe('DiscordAgent direct messages', () => {
     assert.equal(calls[0].body.content, `<@${USER_ID}>`);
   });
 
+  it('stays silent on the not found type when set to available only', async () => {
+    const calls = mockPost();
+
+    assert.equal(
+      await makeAgent({ botToken: BOT_TOKEN }).send(
+        Notification.MEDIA_NOT_FOUND,
+        payload
+      ),
+      true
+    );
+    assert.equal(calls.length, 0);
+  });
+
   it('sends direct messages without a channel webhook', async () => {
     const calls = mockPost();
     const agent = makeAgent({ webhookUrl: '', botToken: BOT_TOKEN });

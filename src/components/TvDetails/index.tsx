@@ -294,7 +294,8 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
         (request) =>
           request.is4k === is4k &&
           request.status !== MediaRequestStatus.DECLINED &&
-          request.status !== MediaRequestStatus.COMPLETED
+          request.status !== MediaRequestStatus.COMPLETED &&
+          request.status !== MediaRequestStatus.CLOSED
       )
       .reduce((requestedSeasons, request) => {
         return [
@@ -309,7 +310,8 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
           (season[is4k ? 'status4k' : 'status'] === MediaStatus.AVAILABLE ||
             season[is4k ? 'status4k' : 'status'] ===
               MediaStatus.PARTIALLY_AVAILABLE ||
-            season[is4k ? 'status4k' : 'status'] === MediaStatus.PROCESSING) &&
+            season[is4k ? 'status4k' : 'status'] === MediaStatus.PROCESSING ||
+            season[is4k ? 'status4k' : 'status'] === MediaStatus.BLOCKLISTED) &&
           !requestedSeasons.includes(season.seasonNumber)
       )
       .map((season) => season.seasonNumber);
@@ -989,6 +991,22 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                               </div>
                             </>
                           )}
+                          {mSeason?.status === MediaStatus.BLOCKLISTED && (
+                            <>
+                              <div className="hidden md:flex">
+                                <Badge badgeType="danger">
+                                  {intl.formatMessage(
+                                    globalMessages.blocklisted
+                                  )}
+                                </Badge>
+                              </div>
+                              <div className="flex md:hidden">
+                                <StatusBadgeMini
+                                  status={MediaStatus.BLOCKLISTED}
+                                />
+                              </div>
+                            </>
+                          )}
                           {mSeason?.status === MediaStatus.DELETED &&
                             request?.status !== MediaRequestStatus.APPROVED && (
                               <>
@@ -1088,6 +1106,26 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                                 <div className="flex md:hidden">
                                   <StatusBadgeMini
                                     status={MediaStatus.AVAILABLE}
+                                    is4k={true}
+                                  />
+                                </div>
+                              </>
+                            )}
+                          {mSeason4k?.status4k === MediaStatus.BLOCKLISTED &&
+                            show4k && (
+                              <>
+                                <div className="hidden md:flex">
+                                  <Badge badgeType="danger">
+                                    {intl.formatMessage(messages.status4k, {
+                                      status: intl.formatMessage(
+                                        globalMessages.blocklisted
+                                      ),
+                                    })}
+                                  </Badge>
+                                </div>
+                                <div className="flex md:hidden">
+                                  <StatusBadgeMini
+                                    status={MediaStatus.BLOCKLISTED}
                                     is4k={true}
                                   />
                                 </div>

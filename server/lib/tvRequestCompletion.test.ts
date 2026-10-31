@@ -31,6 +31,41 @@ function makeSeason(
 }
 
 describe('requestSeasonsSatisfied', () => {
+  it('does not wait for a season closed as not found', () => {
+    const request = makeRequest(false, [
+      { seasonNumber: 1, status: MediaRequestStatus.CLOSED },
+      { seasonNumber: 2 },
+    ]);
+
+    const result = requestSeasonsSatisfied(
+      request,
+      [
+        makeSeason(1, MediaStatus.BLOCKLISTED),
+        makeSeason(2, MediaStatus.AVAILABLE),
+      ],
+      undefined
+    );
+
+    assert.deepStrictEqual(result, {
+      complete: true,
+      availableSeasonNumbers: [2],
+    });
+  });
+
+  it('does not complete a request whose seasons were all closed', () => {
+    const request = makeRequest(false, [
+      { seasonNumber: 1, status: MediaRequestStatus.CLOSED },
+    ]);
+
+    const result = requestSeasonsSatisfied(
+      request,
+      [makeSeason(1, MediaStatus.BLOCKLISTED)],
+      undefined
+    );
+
+    assert.strictEqual(result.complete, false);
+  });
+
   it('completes the Law & Order request: season 27 available, season 28 unaired', () => {
     const request = makeRequest(false, [
       { seasonNumber: 27 },

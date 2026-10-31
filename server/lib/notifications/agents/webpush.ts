@@ -134,6 +134,9 @@ class WebPushAgent
           mediaType,
         });
         break;
+      case Notification.MEDIA_NOT_FOUND:
+        message = payload.message;
+        break;
       case Notification.MEDIA_PENDING:
         message = intl.formatMessage(messages.pending, {
           quality,

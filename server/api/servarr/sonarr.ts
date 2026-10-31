@@ -756,6 +756,32 @@ class SonarrAPI extends ServarrBase<{
     return { series: response.data, commandIds };
   }
 
+  /**
+   * Sets monitored=false on the given seasons and changes nothing else: the
+   * series keeps its own monitored flag, quality profile and other seasons.
+   */
+  public async unmonitorSeasons(
+    seriesId: number,
+    seasonNumbers: number[]
+  ): Promise<void> {
+    const series = await this.getSeriesById(seriesId);
+
+    await this.axios.put<SonarrSeries>(`/series/${seriesId}`, {
+      ...series,
+      seasons: series.seasons.map((season) =>
+        seasonNumbers.includes(season.seasonNumber)
+          ? { ...season, monitored: false }
+          : season
+      ),
+    });
+
+    logger.info('Unmonitored seasons in Sonarr', {
+      label: 'Sonarr',
+      seriesId,
+      seasons: seasonNumbers,
+    });
+  }
+
   private buildSeasonList(
     seasons: number[],
     existingSeasons?: SonarrSeason[]
@@ -780,7 +806,10 @@ class SonarrAPI extends ServarrBase<{
 
     return newSeasons;
   }
-  public removeSeries = async (tvdbId: number): Promise<void> => {
+  public removeSeries = async (
+    tvdbId: number,
+    { deleteFiles = true }: { deleteFiles?: boolean } = {}
+  ): Promise<void> => {
     const { id, title } = await this.getSeriesByTvdbId(tvdbId);
 
     if (!id) {
@@ -793,7 +822,7 @@ class SonarrAPI extends ServarrBase<{
     try {
       await this.axios.delete(`/series/${id}`, {
         params: {
-          deleteFiles: true,
+          deleteFiles,
           addImportExclusion: false,
         },
       });

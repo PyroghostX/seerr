@@ -185,7 +185,9 @@ mediaRoutes.delete(
         where: { id: Number(req.params.id) },
       });
 
-      if (media.status === MediaStatus.BLOCKLISTED) {
+      // A title closed as not found at one quality has no Blocklist row, so
+      // Clear Data is how an admin lifts that block.
+      if (media.status === MediaStatus.BLOCKLISTED && (await media.blocklist)) {
         media.resetServiceData();
         await mediaRepository.save(media);
       } else {

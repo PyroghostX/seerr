@@ -30,6 +30,25 @@ describe('RadarrAPI removeMovie', () => {
     assert.strictEqual(del.mock.calls[0].arguments[0], '/movie/7');
   });
 
+  it('deletes files by default and keeps them with deleteFiles false', async () => {
+    const radarr = buildRadarr();
+    mock.method(RadarrAPI.prototype, 'getMovieByTmdbId', async () => ({
+      id: 7,
+      title: 'Test Movie',
+    }));
+    const del = mock.method(getAxios(radarr), 'delete', async () => ({}));
+
+    await radarr.removeMovie(550);
+    await radarr.removeMovie(550, { deleteFiles: false });
+
+    assert.deepStrictEqual(del.mock.calls[0].arguments[1], {
+      params: { deleteFiles: true, addImportExclusion: false },
+    });
+    assert.deepStrictEqual(del.mock.calls[1].arguments[1], {
+      params: { deleteFiles: false, addImportExclusion: false },
+    });
+  });
+
   it('does nothing when the movie is not in the library', async () => {
     const radarr = buildRadarr();
     mock.method(getAxios(radarr), 'get', async () => ({

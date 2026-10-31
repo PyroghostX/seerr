@@ -155,6 +155,21 @@ describe('isMovieReleased', () => {
   });
 });
 
+describe('missingAiredSeasons, closed seasons', () => {
+  it('skips a season closed as not found', () => {
+    const request = {
+      is4k: false,
+      seasons: [{ seasonNumber: 1, status: MediaRequestStatus.CLOSED }],
+    } as unknown as MediaRequest;
+    const tvShow = {
+      last_episode_to_air: { season_number: 1, episode_number: 10 },
+      seasons: [{ season_number: 1, episode_count: 10 }],
+    } as unknown as Parameters<typeof missingAiredSeasons>[2];
+
+    assert.deepStrictEqual(missingAiredSeasons(request, [], tvShow, NOW), []);
+  });
+});
+
 describe('missingAiredSeasons', () => {
   const tvShow = {
     last_episode_to_air: { season_number: 3, episode_number: 2 },

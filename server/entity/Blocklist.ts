@@ -64,6 +64,7 @@ export class Blocklist implements BlocklistItem {
         title?: ZodOptional<ZodString>['_output'];
         tmdbId: ZodNumber['_output'];
         blocklistedTags?: string;
+        user?: User | number;
       };
     },
     entityManager?: EntityManager
@@ -71,7 +72,7 @@ export class Blocklist implements BlocklistItem {
     const em = entityManager ?? dataSource;
     const blocklist = new this({
       ...blocklistRequest,
-    });
+    } as Partial<Blocklist>);
 
     const mediaRepository = em.getRepository(Media);
     let media = await mediaRepository.findOne({

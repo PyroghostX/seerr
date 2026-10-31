@@ -1,5 +1,5 @@
 import SonarrAPI from '@server/api/servarr/sonarr';
-import { MediaType } from '@server/constants/media';
+import { MediaRequestStatus, MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import { MediaRequest } from '@server/entity/MediaRequest';
 import { parseEraPlan, serializeEraPlan } from '@server/lib/eraPlan';
@@ -63,7 +63,11 @@ class EraPhaseRunner {
     const requestRepository = getRepository(MediaRequest);
 
     const plan = parseEraPlan(request.eraPlan);
-    if (!plan || plan.pending.length === 0) {
+    if (
+      !plan ||
+      plan.pending.length === 0 ||
+      request.status === MediaRequestStatus.CLOSED
+    ) {
       await requestRepository.update(request.id, { eraPlan: null });
       return;
     }

@@ -2,6 +2,7 @@ import Spinner from '@app/assets/spinner.svg';
 import Badge from '@app/components/Common/Badge';
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
+import ConfirmButton from '@app/components/Common/ConfirmButton';
 import Tooltip from '@app/components/Common/Tooltip';
 import RequestModal from '@app/components/RequestModal';
 import StatusBadge from '@app/components/StatusBadge';
@@ -18,11 +19,16 @@ import { withProperties } from '@app/utils/typeHelpers';
 import {
   ArrowPathIcon,
   CheckIcon,
+  MagnifyingGlassIcon,
   PencilIcon,
   TrashIcon,
   XMarkIcon,
 } from '@heroicons/react/24/solid';
-import { MediaRequestStatus, MediaStatus } from '@server/constants/media';
+import {
+  MediaRequestStatus,
+  MediaStatus,
+  NOT_FOUND_CLOSABLE_STATUSES,
+} from '@server/constants/media';
 import type { MediaRequest } from '@server/entity/MediaRequest';
 import type { NonFunctionProperties } from '@server/interfaces/api/common';
 import type { MovieDetails } from '@server/models/Movie';
@@ -155,8 +161,12 @@ const RequestCardError = ({ requestData }: RequestCardErrorProps) => {
                       </Badge>
                     </span>
                   )}
-                  {requestData.status === MediaRequestStatus.DECLINED ||
-                  requestData.status === MediaRequestStatus.FAILED ? (
+                  {requestData.status === MediaRequestStatus.CLOSED ? (
+                    <Badge badgeType="light">
+                      {intl.formatMessage(globalMessages.closed)}
+                    </Badge>
+                  ) : requestData.status === MediaRequestStatus.DECLINED ||
+                    requestData.status === MediaRequestStatus.FAILED ? (
                     <Badge badgeType="danger">
                       {requestData.status === MediaRequestStatus.DECLINED
                         ? intl.formatMessage(globalMessages.declined)
@@ -234,7 +244,7 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
   const { addToast } = useToasts();
   const [isRetrying, setRetrying] = useState(false);
   const [updatingType, setUpdatingType] = useState<
-    'approve' | 'decline' | null
+    'approve' | 'decline' | 'not-found' | null
   >(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const url =
@@ -281,6 +291,23 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
         autoDismiss: true,
         appearance: 'error',
       });
+    } finally {
+      setUpdatingType(null);
+    }
+  };
+
+  const closeAsNotFound = async () => {
+    setUpdatingType('not-found');
+    try {
+      await axios.post(`/api/v1/request/${request.id}/not-found`);
+      revalidate();
+      mutate('/api/v1/request/count');
+    } catch (e) {
+      addToast(
+        e.response?.data?.message ??
+          intl.formatMessage(globalMessages.closeAsNotFoundError),
+        { autoDismiss: true, appearance: 'error' }
+      );
     } finally {
       setUpdatingType(null);
     }
@@ -449,6 +476,10 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
               <Badge badgeType="danger">
                 {intl.formatMessage(globalMessages.declined)}
               </Badge>
+            ) : requestData.status === MediaRequestStatus.CLOSED ? (
+              <Badge badgeType="light">
+                {intl.formatMessage(globalMessages.closed)}
+              </Badge>
             ) : requestData.status === MediaRequestStatus.FAILED ? (
               <Badge
                 badgeType="danger"
@@ -565,6 +596,39 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                     </Tooltip>
                   </div>
                 </>
+              )}
+            {NOT_FOUND_CLOSABLE_STATUSES.includes(requestData.status) &&
+              !requestData.isUpgrade &&
+              hasPermission(Permission.MANAGE_REQUESTS) && (
+                <Tooltip
+                  content={intl.formatMessage(globalMessages.couldNotFind)}
+                >
+                  <ConfirmButton
+                    onClick={() => closeAsNotFound()}
+                    confirmText={
+                      <>
+                        <CheckIcon
+                          className="sm:hidden"
+                          style={{ marginRight: '0' }}
+                        />
+                        <span className="hidden sm:block">
+                          {intl.formatMessage(globalMessages.closeAsNotFound)}
+                        </span>
+                      </>
+                    }
+                    buttonSize="sm"
+                    disabled={updatingType !== null}
+                  >
+                    {updatingType === 'not-found' ? (
+                      <Spinner />
+                    ) : (
+                      <MagnifyingGlassIcon style={{ marginRight: '0' }} />
+                    )}
+                    <span className="ml-1.5 hidden sm:block">
+                      {intl.formatMessage(globalMessages.couldNotFind)}
+                    </span>
+                  </ConfirmButton>
+                </Tooltip>
               )}
             {requestData.status === MediaRequestStatus.PENDING &&
               !hasPermission(Permission.MANAGE_REQUESTS) &&

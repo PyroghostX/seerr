@@ -47,6 +47,11 @@ export function requestSeasonsSatisfied(
   let everySeasonSatisfied = request.seasons.length > 0;
 
   for (const requestSeason of request.seasons) {
+    // Closed as not found: it will never arrive, so don't wait for it
+    if (requestSeason.status === MediaRequestStatus.CLOSED) {
+      continue;
+    }
+
     const mediaSeason = mediaSeasons.find(
       (season) => season.seasonNumber === requestSeason.seasonNumber
     );

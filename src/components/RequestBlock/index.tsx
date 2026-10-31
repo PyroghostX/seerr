@@ -1,22 +1,28 @@
 import Badge from '@app/components/Common/Badge';
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
+import ConfirmButton from '@app/components/Common/ConfirmButton';
 import Tooltip from '@app/components/Common/Tooltip';
 import RequestModal from '@app/components/RequestModal';
 import useRequestOverride from '@app/hooks/useRequestOverride';
-import { useUser } from '@app/hooks/useUser';
+import useToasts from '@app/hooks/useToasts';
+import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
 import {
   CalendarIcon,
   CheckIcon,
   EyeIcon,
+  MagnifyingGlassIcon,
   PencilIcon,
   TrashIcon,
   UserIcon,
   XMarkIcon,
 } from '@heroicons/react/24/solid';
-import { MediaRequestStatus } from '@server/constants/media';
+import {
+  MediaRequestStatus,
+  NOT_FOUND_CLOSABLE_STATUSES,
+} from '@server/constants/media';
 import type { MediaRequest } from '@server/entity/MediaRequest';
 import axios from 'axios';
 import Link from 'next/link';
@@ -46,7 +52,8 @@ interface RequestBlockProps {
 }
 
 const RequestBlock = ({ request, onUpdate }: RequestBlockProps) => {
-  const { user } = useUser();
+  const { user, hasPermission } = useUser();
+  const { addToast } = useToasts();
   const intl = useIntl();
   const [isUpdating, setIsUpdating] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -62,6 +69,27 @@ const RequestBlock = ({ request, onUpdate }: RequestBlockProps) => {
       mutate('/api/v1/request/count');
     }
     setIsUpdating(false);
+  };
+
+  const closeAsNotFound = async () => {
+    setIsUpdating(true);
+
+    try {
+      await axios.post(`/api/v1/request/${request.id}/not-found`);
+
+      if (onUpdate) {
+        onUpdate();
+        mutate('/api/v1/request/count');
+      }
+    } catch (e) {
+      addToast(
+        e.response?.data?.message ??
+          intl.formatMessage(globalMessages.closeAsNotFoundError),
+        { autoDismiss: true, appearance: 'error' }
+      );
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   const deleteRequest = async () => {
@@ -155,6 +183,21 @@ const RequestBlock = ({ request, onUpdate }: RequestBlockProps) => {
             )}
           </div>
           <div className="ml-2 flex flex-shrink-0 flex-wrap">
+            {NOT_FOUND_CLOSABLE_STATUSES.includes(request.status) &&
+              !request.isUpgrade &&
+              hasPermission(Permission.MANAGE_REQUESTS) && (
+                <ConfirmButton
+                  onClick={() => closeAsNotFound()}
+                  confirmText={intl.formatMessage(
+                    globalMessages.closeAsNotFound
+                  )}
+                  className="mr-1"
+                  disabled={isUpdating}
+                >
+                  <MagnifyingGlassIcon className="icon-sm" />
+                  <span>{intl.formatMessage(globalMessages.couldNotFind)}</span>
+                </ConfirmButton>
+              )}
             {request.status === MediaRequestStatus.PENDING && (
               <>
                 <Tooltip content={intl.formatMessage(messages.approve)}>
@@ -232,6 +275,11 @@ const RequestBlock = ({ request, onUpdate }: RequestBlockProps) => {
               {request.status === MediaRequestStatus.COMPLETED && (
                 <Badge badgeType="success">
                   {intl.formatMessage(globalMessages.completed)}
+                </Badge>
+              )}
+              {request.status === MediaRequestStatus.CLOSED && (
+                <Badge badgeType="light">
+                  {intl.formatMessage(globalMessages.closed)}
                 </Badge>
               )}
             </div>

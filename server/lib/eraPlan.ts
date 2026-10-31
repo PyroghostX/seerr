@@ -49,6 +49,30 @@ export const serializeEraPlan = (plan: EraPlan | null): string | null =>
   plan && plan.pending.length > 0 ? JSON.stringify(plan) : null;
 
 /**
+ * The plan without the given seasons, so no later phase re-monitors them.
+ * Phases left with no seasons are dropped.
+ */
+export const removeSeasonsFromEraPlan = (
+  plan: EraPlan,
+  seasons: number[]
+): EraPlan => {
+  const keep = (seasonNumber: number) => !seasons.includes(seasonNumber);
+
+  return {
+    ...plan,
+    pending: plan.pending
+      .map((phase) => ({ ...phase, seasons: phase.seasons.filter(keep) }))
+      .filter((phase) => phase.seasons.length > 0),
+    ...(plan.current && {
+      current: {
+        ...plan.current,
+        seasons: plan.current.seasons.filter(keep),
+      },
+    }),
+  };
+};
+
+/**
  * Search order for a set of seasons: the first and last requested seasons
  * first (people usually want to start watching and to catch up on the latest
  * episodes), then the middle seasons in ascending order.

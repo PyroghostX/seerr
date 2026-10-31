@@ -132,6 +132,7 @@ class EmailAgent
 
     if (payload.request) {
       let body = '';
+      let emailSubject: string | undefined;
 
       switch (type) {
         case Notification.MEDIA_PENDING:
@@ -182,6 +183,12 @@ class EmailAgent
             }
           );
           break;
+        case Notification.MEDIA_NOT_FOUND:
+          // MediaRequest.sendNotification writes the sentence, because it
+          // names the seasons this requester lost.
+          body = payload.message ?? '';
+          emailSubject = `${payload.subject} could not be found`;
+          break;
       }
 
       // Upgrade requests (isUpgrade) re-download what is already there in
@@ -208,6 +215,7 @@ class EmailAgent
         },
         locals: {
           event,
+          emailSubject,
           body,
           mediaName: payload.subject,
           mediaExtra: payload.extra ?? [],

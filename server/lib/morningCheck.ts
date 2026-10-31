@@ -138,7 +138,10 @@ export function missingAiredSeasons(
   const missing: number[] = [];
 
   for (const requestSeason of request.seasons ?? []) {
-    if (requestSeason.status === MediaRequestStatus.COMPLETED) {
+    if (
+      requestSeason.status === MediaRequestStatus.COMPLETED ||
+      requestSeason.status === MediaRequestStatus.CLOSED
+    ) {
       continue;
     }
 

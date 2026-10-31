@@ -22,6 +22,10 @@ import type {
   MediaRequestBody,
   RequestResultsResponse,
 } from '@server/interfaces/api/requestInterfaces';
+import {
+  NotFoundCloseError,
+  closeRequestAsNotFound,
+} from '@server/lib/notFoundClose';
 import { Permission } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -58,7 +62,7 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
           ];
           break;
         case 'failed':
-          statusFilter = [MediaRequestStatus.FAILED];
+          statusFilter = [MediaRequestStatus.FAILED, MediaRequestStatus.CLOSED];
           break;
         case 'completed':
         case 'available':
@@ -72,6 +76,7 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
             MediaRequestStatus.DECLINED,
             MediaRequestStatus.FAILED,
             MediaRequestStatus.COMPLETED,
+            MediaRequestStatus.CLOSED,
           ];
       }
 
@@ -140,9 +145,12 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
         .where('request.status IN (:...requestStatus)', {
           requestStatus: statusFilter,
         })
+        // A closed request's media is usually blocklisted, which the media
+        // status filters above leave out.
         .andWhere(
-          '((request.is4k = false AND media.status IN (:...mediaStatus)) OR (request.is4k = true AND media.status4k IN (:...mediaStatus)))',
+          '(request.status = :closedStatus OR (request.is4k = false AND media.status IN (:...mediaStatus)) OR (request.is4k = true AND media.status4k IN (:...mediaStatus)))',
           {
+            closedStatus: MediaRequestStatus.CLOSED,
             mediaStatus: mediaStatusFilter,
           }
         );
@@ -561,7 +569,8 @@ requestRoutes.put<{ requestId: string }>(
               r.is4k === request.is4k &&
               r.id !== request.id &&
               r.status !== MediaRequestStatus.DECLINED &&
-              r.status !== MediaRequestStatus.COMPLETED
+              r.status !== MediaRequestStatus.COMPLETED &&
+              r.status !== MediaRequestStatus.CLOSED
           )
           .reduce((seasons, r) => {
             const combinedSeasons = r.seasons.map(
@@ -570,6 +579,17 @@ requestRoutes.put<{ requestId: string }>(
 
             return [...seasons, ...combinedSeasons];
           }, [] as number[]);
+
+        // Seasons closed as not found can't be edited back into a request
+        existingSeasons.push(
+          ...media.seasons
+            .filter(
+              (season) =>
+                season[request.is4k ? 'status4k' : 'status'] ===
+                MediaStatus.BLOCKLISTED
+            )
+            .map((season) => season.seasonNumber)
+        );
 
         const filteredSeasons = requestedSeasons.filter(
           (rs) => !existingSeasons.includes(rs)
@@ -681,6 +701,37 @@ requestRoutes.post<{
         message: e.message,
       });
       next({ status: 404, message: 'Request not found.' });
+    }
+  }
+);
+
+requestRoutes.post<{
+  requestId: string;
+}>(
+  '/:requestId/not-found',
+  isAuthenticated(Permission.MANAGE_REQUESTS),
+  async (req, res, next) => {
+    try {
+      const request = await closeRequestAsNotFound(
+        Number(req.params.requestId),
+        req.user as User
+      );
+
+      return res.status(200).json(request);
+    } catch (e) {
+      if (e instanceof NotFoundCloseError) {
+        return next({ status: e.status, message: e.message });
+      }
+
+      logger.error('Error closing request as not found', {
+        label: 'Media Request',
+        requestId: req.params.requestId,
+        errorMessage: e instanceof Error ? e.message : String(e),
+      });
+      next({
+        status: 500,
+        message: e instanceof Error ? e.message : String(e),
+      });
     }
   }
 );

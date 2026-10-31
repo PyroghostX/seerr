@@ -1,4 +1,8 @@
-import { groupSeasonsByEra, orderSeasonsForSearch } from '@server/lib/eraPlan';
+import {
+  groupSeasonsByEra,
+  orderSeasonsForSearch,
+  removeSeasonsFromEraPlan,
+} from '@server/lib/eraPlan';
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
@@ -65,5 +69,28 @@ describe('groupSeasonsByEra', () => {
       seasons: [1, 2, 3],
       minYear: Infinity,
     });
+  });
+});
+
+describe('removeSeasonsFromEraPlan', () => {
+  it('drops the seasons and any phase left empty', () => {
+    const plan = removeSeasonsFromEraPlan(
+      {
+        pending: [
+          { profileId: 3, seasons: [2] },
+          { profileId: null, seasons: [3, 4] },
+        ],
+        current: {
+          profileId: 1,
+          seasons: [1, 2],
+          commandIds: [9],
+          startedAt: '2026-10-28T00:00:00.000Z',
+        },
+      },
+      [2, 4]
+    );
+
+    assert.deepStrictEqual(plan.pending, [{ profileId: null, seasons: [3] }]);
+    assert.deepStrictEqual(plan.current?.seasons, [1]);
   });
 });

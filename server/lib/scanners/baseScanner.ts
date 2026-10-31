@@ -133,8 +133,9 @@ class BaseScanner<T> {
                   previousStatus === MediaStatus.PROCESSING
                 ? MediaStatus.UNKNOWN
                 : processing
-                  ? previousStatus === MediaStatus.DELETED
-                    ? MediaStatus.DELETED
+                  ? previousStatus === MediaStatus.DELETED ||
+                    previousStatus === MediaStatus.BLOCKLISTED
+                    ? previousStatus
                     : MediaStatus.PROCESSING
                   : previousStatus;
 
@@ -361,7 +362,8 @@ class BaseScanner<T> {
                 ? MediaStatus.PARTIALLY_AVAILABLE
                 : !season.is4kOverride &&
                     season.processing &&
-                    existingSeason.status !== MediaStatus.DELETED
+                    existingSeason.status !== MediaStatus.DELETED &&
+                    existingSeason.status !== MediaStatus.BLOCKLISTED
                   ? MediaStatus.PROCESSING
                   : !season.is4kOverride &&
                       !season.processing &&
@@ -381,7 +383,8 @@ class BaseScanner<T> {
                 ? MediaStatus.PARTIALLY_AVAILABLE
                 : season.is4kOverride &&
                     season.processing &&
-                    existingSeason.status4k !== MediaStatus.DELETED
+                    existingSeason.status4k !== MediaStatus.DELETED &&
+                    existingSeason.status4k !== MediaStatus.BLOCKLISTED
                   ? MediaStatus.PROCESSING
                   : season.is4kOverride &&
                       !season.processing &&
@@ -520,14 +523,16 @@ class BaseScanner<T> {
                   season.status === MediaStatus.AVAILABLE
               )
             ? MediaStatus.PARTIALLY_AVAILABLE
-            : (!seasons.length && media.status !== MediaStatus.DELETED) ||
-                media.seasons.some(
-                  (season) => season.status === MediaStatus.PROCESSING
-                )
-              ? MediaStatus.PROCESSING
-              : media.status === MediaStatus.DELETED
-                ? MediaStatus.DELETED
-                : MediaStatus.UNKNOWN;
+            : media.status === MediaStatus.BLOCKLISTED
+              ? MediaStatus.BLOCKLISTED
+              : (!seasons.length && media.status !== MediaStatus.DELETED) ||
+                  media.seasons.some(
+                    (season) => season.status === MediaStatus.PROCESSING
+                  )
+                ? MediaStatus.PROCESSING
+                : media.status === MediaStatus.DELETED
+                  ? MediaStatus.DELETED
+                  : MediaStatus.UNKNOWN;
         media.status4k =
           isAll4kSeasonsAvailable && this.enable4kShow
             ? MediaStatus.AVAILABLE
@@ -538,14 +543,16 @@ class BaseScanner<T> {
                     season.status4k === MediaStatus.AVAILABLE
                 )
               ? MediaStatus.PARTIALLY_AVAILABLE
-              : (!seasons.length && media.status4k !== MediaStatus.DELETED) ||
-                  media.seasons.some(
-                    (season) => season.status4k === MediaStatus.PROCESSING
-                  )
-                ? MediaStatus.PROCESSING
-                : media.status4k === MediaStatus.DELETED
-                  ? MediaStatus.DELETED
-                  : MediaStatus.UNKNOWN;
+              : media.status4k === MediaStatus.BLOCKLISTED
+                ? MediaStatus.BLOCKLISTED
+                : (!seasons.length && media.status4k !== MediaStatus.DELETED) ||
+                    media.seasons.some(
+                      (season) => season.status4k === MediaStatus.PROCESSING
+                    )
+                  ? MediaStatus.PROCESSING
+                  : media.status4k === MediaStatus.DELETED
+                    ? MediaStatus.DELETED
+                    : MediaStatus.UNKNOWN;
         await mediaRepository.save(media);
         this.log(`Updating existing title: ${title}`);
       } else {

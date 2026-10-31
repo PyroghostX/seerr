@@ -204,6 +204,97 @@ describe('Sonarr Scanner', () => {
     getTvShowImpl = async () => fakeTmdbShow(1);
   });
 
+  describe('seasons closed as not found', () => {
+    async function scanBlocklistedSeason(
+      episodeFileCount: number
+    ): Promise<Media> {
+      const mediaRepository = getRepository(Media);
+
+      const media = new Media();
+      media.tmdbId = 1;
+      media.tvdbId = 200;
+      media.mediaType = MediaType.TV;
+      media.status = MediaStatus.UNKNOWN;
+      media.seasons = [
+        new Season({
+          seasonNumber: 1,
+          status: MediaStatus.BLOCKLISTED,
+          status4k: MediaStatus.UNKNOWN,
+        }),
+      ];
+      await mediaRepository.save(media);
+
+      configureSonarr([{ syncEnabled: true }]);
+      getSeriesImpl = async () => [
+        fakeSonarrSeries({
+          tvdbId: 200,
+          seasons: [
+            {
+              seasonNumber: 1,
+              // Still monitored, the case that reads as "processing"
+              monitored: true,
+              statistics: {
+                episodeFileCount,
+                totalEpisodeCount: 10,
+                episodeCount: 10,
+                percentOfEpisodes: 0,
+                sizeOnDisk: 0,
+                previousAiring: undefined,
+              },
+            },
+          ],
+        }),
+      ];
+
+      await runWithMockTimers(() => sonarrScanner.run());
+
+      return mediaRepository.findOneOrFail({
+        where: { tmdbId: 1 },
+        relations: ['seasons'],
+      });
+    }
+
+    it('leaves a blocklisted season alone while it has no episodes', async () => {
+      const updated = await scanBlocklistedSeason(0);
+
+      assert.strictEqual(updated.seasons[0].status, MediaStatus.BLOCKLISTED);
+    });
+
+    it('flips a blocklisted season to available when its episodes appear', async () => {
+      const updated = await scanBlocklistedSeason(10);
+
+      assert.strictEqual(updated.seasons[0].status, MediaStatus.AVAILABLE);
+      assert.strictEqual(updated.status, MediaStatus.AVAILABLE);
+    });
+
+    it('keeps a blocklisted show blocklisted when a scan finds nothing', async () => {
+      const mediaRepository = getRepository(Media);
+      const media = new Media();
+      media.tmdbId = 1;
+      media.tvdbId = 200;
+      media.mediaType = MediaType.TV;
+      media.status = MediaStatus.BLOCKLISTED;
+      media.status4k = MediaStatus.BLOCKLISTED;
+      await mediaRepository.save(media);
+
+      configureSonarr([{ syncEnabled: true }]);
+      getSeriesImpl = async () => [
+        fakeSonarrSeries({
+          tvdbId: 200,
+          seasons: [{ seasonNumber: 1, monitored: true }],
+        }),
+      ];
+
+      await runWithMockTimers(() => sonarrScanner.run());
+
+      const updated = await mediaRepository.findOneOrFail({
+        where: { tmdbId: 1 },
+      });
+      assert.strictEqual(updated.status, MediaStatus.BLOCKLISTED);
+      assert.strictEqual(updated.status4k, MediaStatus.BLOCKLISTED);
+    });
+  });
+
   describe('orphaned show cleanup', () => {
     it('skips cleanup when a standard server has sync disabled', async () => {
       const mediaRepository = getRepository(Media);

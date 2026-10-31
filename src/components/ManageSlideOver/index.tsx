@@ -224,6 +224,12 @@ const ManageSlideOver = ({
     }
   };
 
+  // Only one quality set means a title closed as not found, with no Blocklist
+  // row to show.
+  const isBlocklisted =
+    data.mediaInfo?.status === MediaStatus.BLOCKLISTED &&
+    data.mediaInfo?.status4k === MediaStatus.BLOCKLISTED;
+
   const requests =
     data.mediaInfo?.requests?.filter(
       (request) => request.status !== MediaRequestStatus.DECLINED
@@ -339,7 +345,7 @@ const ManageSlideOver = ({
             </div>
           </div>
         )}
-        {data.mediaInfo?.status === MediaStatus.BLOCKLISTED && (
+        {data.mediaInfo && isBlocklisted && (
           <div>
             <h3 className="mb-2 text-xl font-bold">
               {intl.formatMessage(globalMessages.blocklist)}
@@ -677,7 +683,7 @@ const ManageSlideOver = ({
           )}
         {hasPermission(Permission.ADMIN) &&
           data?.mediaInfo &&
-          data.mediaInfo.status !== MediaStatus.BLOCKLISTED && (
+          !isBlocklisted && (
             <div>
               <h3 className="mb-2 text-xl font-bold">
                 {intl.formatMessage(messages.manageModalAdvanced)}

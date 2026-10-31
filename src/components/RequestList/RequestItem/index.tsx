@@ -24,11 +24,16 @@ import {
 import {
   ArrowPathIcon,
   CheckIcon,
+  MagnifyingGlassIcon,
   PencilIcon,
   TrashIcon,
   XMarkIcon,
 } from '@heroicons/react/24/solid';
-import { MediaRequestStatus, MediaStatus } from '@server/constants/media';
+import {
+  MediaRequestStatus,
+  MediaStatus,
+  NOT_FOUND_CLOSABLE_STATUSES,
+} from '@server/constants/media';
 import type { MediaRequest } from '@server/entity/MediaRequest';
 import type { NonFunctionProperties } from '@server/interfaces/api/common';
 import type { RequestResultsResponse } from '@server/interfaces/api/requestInterfaces';
@@ -160,8 +165,12 @@ const RequestItemError = ({
                     </Badge>
                   </span>
                 )}
-                {requestData.status === MediaRequestStatus.DECLINED ||
-                requestData.status === MediaRequestStatus.FAILED ? (
+                {requestData.status === MediaRequestStatus.CLOSED ? (
+                  <Badge badgeType="light">
+                    {intl.formatMessage(globalMessages.closed)}
+                  </Badge>
+                ) : requestData.status === MediaRequestStatus.DECLINED ||
+                  requestData.status === MediaRequestStatus.FAILED ? (
                   <Badge badgeType="danger">
                     {requestData.status === MediaRequestStatus.DECLINED
                       ? intl.formatMessage(globalMessages.declined)
@@ -370,7 +379,7 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
 
   const [isRetrying, setRetrying] = useState(false);
   const [updatingType, setUpdatingType] = useState<
-    'approve' | 'decline' | null
+    'approve' | 'decline' | 'not-found' | null
   >(null);
 
   const modifyRequest = async (type: 'approve' | 'decline') => {
@@ -385,6 +394,24 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
         autoDismiss: true,
         appearance: 'error',
       });
+    } finally {
+      setUpdatingType(null);
+    }
+  };
+
+  const closeAsNotFound = async () => {
+    setUpdatingType('not-found');
+    try {
+      await axios.post(`/api/v1/request/${request.id}/not-found`);
+      revalidate();
+      revalidateList();
+      mutate('/api/v1/request/count');
+    } catch (e) {
+      addToast(
+        e.response?.data?.message ??
+          intl.formatMessage(globalMessages.closeAsNotFoundError),
+        { autoDismiss: true, appearance: 'error' }
+      );
     } finally {
       setUpdatingType(null);
     }
@@ -580,6 +607,10 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
               {requestData.status === MediaRequestStatus.DECLINED ? (
                 <Badge badgeType="danger">
                   {intl.formatMessage(globalMessages.declined)}
+                </Badge>
+              ) : requestData.status === MediaRequestStatus.CLOSED ? (
+                <Badge badgeType="light">
+                  {intl.formatMessage(globalMessages.closed)}
                 </Badge>
               ) : requestData.status === MediaRequestStatus.FAILED ? (
                 <Badge
@@ -833,20 +864,23 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                   <TrashIcon />
                   <span>{intl.formatMessage(messages.deleterequest)}</span>
                 </ConfirmButton>
-                {request.canRemove && (
-                  <ConfirmButton
-                    onClick={() => deleteMediaFile()}
-                    confirmText={intl.formatMessage(globalMessages.areyousure)}
-                    className="w-full"
-                  >
-                    <TrashIcon />
-                    <span>
-                      {intl.formatMessage(messages.removearr, {
-                        arr: request.type === 'movie' ? 'Radarr' : 'Sonarr',
-                      })}
-                    </span>
-                  </ConfirmButton>
-                )}
+                {request.canRemove &&
+                  requestData.status !== MediaRequestStatus.CLOSED && (
+                    <ConfirmButton
+                      onClick={() => deleteMediaFile()}
+                      confirmText={intl.formatMessage(
+                        globalMessages.areyousure
+                      )}
+                      className="w-full"
+                    >
+                      <TrashIcon />
+                      <span>
+                        {intl.formatMessage(messages.removearr, {
+                          arr: request.type === 'movie' ? 'Radarr' : 'Sonarr',
+                        })}
+                      </span>
+                    </ConfirmButton>
+                  )}
               </>
             )}
           {requestData.status === MediaRequestStatus.PENDING &&
@@ -903,6 +937,23 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
               >
                 <XMarkIcon />
                 <span>{intl.formatMessage(messages.cancelRequest)}</span>
+              </ConfirmButton>
+            )}
+          {NOT_FOUND_CLOSABLE_STATUSES.includes(requestData.status) &&
+            !requestData.isUpgrade &&
+            hasPermission(Permission.MANAGE_REQUESTS) && (
+              <ConfirmButton
+                onClick={() => closeAsNotFound()}
+                confirmText={intl.formatMessage(globalMessages.closeAsNotFound)}
+                className="w-full"
+                disabled={updatingType !== null}
+              >
+                {updatingType === 'not-found' ? (
+                  <Spinner />
+                ) : (
+                  <MagnifyingGlassIcon />
+                )}
+                <span>{intl.formatMessage(globalMessages.couldNotFind)}</span>
               </ConfirmButton>
             )}
         </div>

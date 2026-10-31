@@ -328,7 +328,10 @@ class RadarrAPI extends ServarrBase<{ movieId: number }> {
       );
     }
   }
-  public removeMovie = async (tmdbId: number): Promise<void> => {
+  public removeMovie = async (
+    tmdbId: number,
+    { deleteFiles = true }: { deleteFiles?: boolean } = {}
+  ): Promise<void> => {
     const { id, title } = await this.getMovieByTmdbId(tmdbId);
 
     if (!id) {
@@ -341,7 +344,7 @@ class RadarrAPI extends ServarrBase<{ movieId: number }> {
     try {
       await this.axios.delete(`/movie/${id}`, {
         params: {
-          deleteFiles: true,
+          deleteFiles,
           addImportExclusion: false,
         },
       });

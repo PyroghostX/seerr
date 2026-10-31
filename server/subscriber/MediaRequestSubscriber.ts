@@ -150,7 +150,11 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
 
     // Check availability using fresh media state
     const requestedSeasons =
-      entity.seasons?.map((entitySeason) => entitySeason.seasonNumber) ?? [];
+      entity.seasons
+        ?.filter(
+          (entitySeason) => entitySeason.status !== MediaRequestStatus.CLOSED
+        )
+        .map((entitySeason) => entitySeason.seasonNumber) ?? [];
     const availableSeasons = latestMedia.seasons.filter(
       (season) =>
         season[entity.is4k ? 'status4k' : 'status'] === MediaStatus.AVAILABLE &&
@@ -667,10 +671,14 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         // actually present. Only short-circuit when each requested season
         // has a matching Season row that is itself AVAILABLE, otherwise
         // fall through and let Sonarr pick up the (e.g. unaired) seasons.
+        // Seasons closed as not found stay out of everything sent to Sonarr
         const statusKey = entity.is4k ? 'status4k' : 'status';
+        const openSeasons = entity.seasons.filter(
+          (season) => season.status !== MediaRequestStatus.CLOSED
+        );
         const everyRequestedSeasonAvailable =
-          entity.seasons.length > 0 &&
-          entity.seasons.every((requestSeason) =>
+          openSeasons.length > 0 &&
+          openSeasons.every((requestSeason) =>
             media.seasons?.some(
               (mediaSeason) =>
                 mediaSeason.seasonNumber === requestSeason.seasonNumber &&
@@ -690,7 +698,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
 
           const requestRepository = manager.getRepository(MediaRequest);
           entity.status = MediaRequestStatus.COMPLETED;
-          entity.seasons.forEach((season) => {
+          openSeasons.forEach((season) => {
             season.status = MediaRequestStatus.COMPLETED;
           });
           await requestRepository.save(entity);
@@ -851,7 +859,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         const laterSeasons = new Set(
           plan?.pending.flatMap((p) => p.seasons) ?? []
         );
-        let phaseSeasons = entity.seasons
+        let phaseSeasons = openSeasons
           .map((season) => season.seasonNumber)
           .filter((seasonNumber) => !laterSeasons.has(seasonNumber));
         let preSearchCommandIds: number[] = [];
@@ -1200,6 +1208,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
               statuses: [
                 MediaRequestStatus.DECLINED,
                 MediaRequestStatus.COMPLETED,
+                MediaRequestStatus.CLOSED,
               ],
             })
             .andWhere('season.seasonNumber = :seasonNumber', {
@@ -1221,6 +1230,10 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       entity.status === MediaRequestStatus.APPROVED
     ) {
       for (const season of entity.seasons) {
+        if (season.status === MediaRequestStatus.CLOSED) {
+          continue;
+        }
+
         season.status = MediaRequestStatus.APPROVED;
         await seasonRequestRepository.save(season);
       }
@@ -1240,24 +1253,29 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       (request) =>
         !request.is4k &&
         request.status !== MediaRequestStatus.COMPLETED &&
-        request.status !== MediaRequestStatus.DECLINED
+        request.status !== MediaRequestStatus.DECLINED &&
+        request.status !== MediaRequestStatus.CLOSED
     );
     const hasActive4k = fullMedia.requests.some(
       (request) =>
         request.is4k &&
         request.status !== MediaRequestStatus.COMPLETED &&
-        request.status !== MediaRequestStatus.DECLINED
+        request.status !== MediaRequestStatus.DECLINED &&
+        request.status !== MediaRequestStatus.CLOSED
     );
 
+    // Deleting a closed request must not lift the block it left behind
     const needsStatusUpdate =
       !hasActive &&
       fullMedia.status !== MediaStatus.AVAILABLE &&
-      fullMedia.status !== MediaStatus.PARTIALLY_AVAILABLE;
+      fullMedia.status !== MediaStatus.PARTIALLY_AVAILABLE &&
+      fullMedia.status !== MediaStatus.BLOCKLISTED;
 
     const needs4kStatusUpdate =
       !hasActive4k &&
       fullMedia.status4k !== MediaStatus.AVAILABLE &&
-      fullMedia.status4k !== MediaStatus.PARTIALLY_AVAILABLE;
+      fullMedia.status4k !== MediaStatus.PARTIALLY_AVAILABLE &&
+      fullMedia.status4k !== MediaStatus.BLOCKLISTED;
 
     if (needsStatusUpdate || needs4kStatusUpdate) {
       // Re-fetch WITHOUT requests to avoid cascade issues on save
@@ -1298,7 +1316,8 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
             (request) =>
               request.is4k === entity.is4k &&
               request.status !== MediaRequestStatus.COMPLETED &&
-              request.status !== MediaRequestStatus.DECLINED
+              request.status !== MediaRequestStatus.DECLINED &&
+              request.status !== MediaRequestStatus.CLOSED
           )
           .flatMap((request) => request.seasons.map((s) => s.seasonNumber))
       );

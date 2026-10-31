@@ -67,7 +67,11 @@ const CollectionRequestModal = ({
 
   const getAllParts = (): number[] => {
     return (data?.parts ?? [])
-      .filter((part) => part.mediaInfo?.status !== MediaStatus.BLOCKLISTED)
+      .filter(
+        (part) =>
+          part.mediaInfo?.[is4k ? 'status4k' : 'status'] !==
+          MediaStatus.BLOCKLISTED
+      )
       .map((part) => part.id);
   };
 
@@ -81,7 +85,8 @@ const CollectionRequestModal = ({
               (request) =>
                 request.is4k === is4k &&
                 request.status !== MediaRequestStatus.DECLINED &&
-                request.status !== MediaRequestStatus.COMPLETED
+                request.status !== MediaRequestStatus.COMPLETED &&
+                request.status !== MediaRequestStatus.CLOSED
             )
             .map((part) => part.id),
         ];
@@ -172,7 +177,8 @@ const CollectionRequestModal = ({
       (request) =>
         request.is4k === is4k &&
         request.status !== MediaRequestStatus.DECLINED &&
-        request.status !== MediaRequestStatus.COMPLETED
+        request.status !== MediaRequestStatus.COMPLETED &&
+        request.status !== MediaRequestStatus.CLOSED
     );
   };
 
@@ -344,7 +350,8 @@ const CollectionRequestModal = ({
                     .filter((part) => {
                       if (!blocklistVisibility)
                         return (
-                          part.mediaInfo?.status !== MediaStatus.BLOCKLISTED
+                          part.mediaInfo?.[is4k ? 'status4k' : 'status'] !==
+                          MediaStatus.BLOCKLISTED
                         );
                       return part;
                     })
@@ -363,7 +370,8 @@ const CollectionRequestModal = ({
                         <tr key={`part-${part.id}`}>
                           <td
                             className={`whitespace-nowrap px-4 py-4 text-sm font-medium leading-5 text-gray-100 ${
-                              partMedia?.status === MediaStatus.BLOCKLISTED &&
+                              partMedia?.[is4k ? 'status4k' : 'status'] ===
+                                MediaStatus.BLOCKLISTED &&
                               'pointer-events-none opacity-50'
                             }`}
                           >
@@ -372,7 +380,7 @@ const CollectionRequestModal = ({
                               tabIndex={0}
                               aria-checked={
                                 (!!partMedia &&
-                                  partMedia.status !==
+                                  partMedia[is4k ? 'status4k' : 'status'] !==
                                     MediaStatus.BLOCKLISTED) ||
                                 isSelectedPart(part.id)
                               }
@@ -384,7 +392,7 @@ const CollectionRequestModal = ({
                               }}
                               className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer items-center justify-center pt-2 focus:outline-none ${
                                 (!!partMedia &&
-                                  partMedia.status !==
+                                  partMedia[is4k ? 'status4k' : 'status'] !==
                                     MediaStatus.BLOCKLISTED) ||
                                 partRequest ||
                                 (quota?.movie.limit &&
@@ -398,7 +406,7 @@ const CollectionRequestModal = ({
                                 aria-hidden="true"
                                 className={`${
                                   (!!partMedia &&
-                                    partMedia.status !==
+                                    partMedia[is4k ? 'status4k' : 'status'] !==
                                       MediaStatus.BLOCKLISTED) ||
                                   partRequest ||
                                   isSelectedPart(part.id)
@@ -410,7 +418,7 @@ const CollectionRequestModal = ({
                                 aria-hidden="true"
                                 className={`${
                                   (!!partMedia &&
-                                    partMedia.status !==
+                                    partMedia[is4k ? 'status4k' : 'status'] !==
                                       MediaStatus.BLOCKLISTED) ||
                                   partRequest ||
                                   isSelectedPart(part.id)
@@ -422,7 +430,8 @@ const CollectionRequestModal = ({
                           </td>
                           <td
                             className={`flex items-center px-1 py-4 text-sm font-medium leading-5 text-gray-100 md:px-6 ${
-                              partMedia?.status === MediaStatus.BLOCKLISTED &&
+                              partMedia?.[is4k ? 'status4k' : 'status'] ===
+                                MediaStatus.BLOCKLISTED &&
                               'pointer-events-none opacity-50'
                             }`}
                           >
@@ -484,7 +493,8 @@ const CollectionRequestModal = ({
                                 {intl.formatMessage(globalMessages.available)}
                               </Badge>
                             )}
-                            {partMedia?.status === MediaStatus.BLOCKLISTED && (
+                            {partMedia?.[is4k ? 'status4k' : 'status'] ===
+                              MediaStatus.BLOCKLISTED && (
                               <Badge badgeType="danger">
                                 {intl.formatMessage(globalMessages.blocklisted)}
                               </Badge>

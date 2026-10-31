@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
-import { before, beforeEach, describe, it, mock } from 'node:test';
+import { afterEach, before, beforeEach, describe, it, mock } from 'node:test';
 
+import type { RadarrMovie } from '@server/api/servarr/radarr';
+import RadarrAPI from '@server/api/servarr/radarr';
 import TheMovieDb from '@server/api/themoviedb';
 import type {
   TmdbMovieDetails,
@@ -58,6 +60,16 @@ Object.defineProperty(TheMovieDb.prototype, 'getTvShow', {
   get() {
     return async (args: { tvId: number; language?: string }) =>
       getTvShowImpl(args);
+  },
+  set() {},
+  configurable: true,
+});
+
+let getLibraryMoviesImpl: () => Promise<RadarrMovie[]> = async () => [];
+
+Object.defineProperty(RadarrAPI.prototype, 'getLibraryMoviesByTmdbId', {
+  get() {
+    return () => getLibraryMoviesImpl();
   },
   set() {},
   configurable: true,
@@ -481,6 +493,106 @@ describe('POST /request/:requestId/:status', () => {
 
     const persisted = await repo.findOneOrFail({ where: { id: declined.id } });
     assert.strictEqual(persisted.status, MediaRequestStatus.DECLINED);
+  });
+});
+
+describe('POST /request/:requestId/not-found', () => {
+  afterEach(() => {
+    getSettings().radarr = [];
+  });
+
+  async function seedClosableRequest(status: MediaRequestStatus) {
+    const requester = await getRepository(User).findOneOrFail({
+      where: { email: 'friend@seerr.dev' },
+    });
+    const media = await getRepository(Media).save(
+      new Media({
+        tmdbId: 4242,
+        mediaType: MediaType.MOVIE,
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+      })
+    );
+    const saved = await getRepository(MediaRequest).save(
+      new MediaRequest({
+        media,
+        requestedBy: requester,
+        type: MediaType.MOVIE,
+        status: MediaRequestStatus.PENDING,
+        is4k: false,
+      })
+    );
+    await getRepository(MediaRequest).update(saved.id, { status });
+
+    return saved;
+  }
+
+  it('requires MANAGE_REQUESTS', async () => {
+    const seeded = await seedClosableRequest(MediaRequestStatus.PENDING);
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+
+    const res = await agent.post(`/request/${seeded.id}/not-found`);
+
+    assert.strictEqual(res.status, 403);
+  });
+
+  it('answers 400 from a status that cannot be closed', async () => {
+    const seeded = await seedClosableRequest(MediaRequestStatus.DECLINED);
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+
+    const res = await agent.post(`/request/${seeded.id}/not-found`);
+
+    assert.strictEqual(res.status, 400);
+  });
+
+  it('answers 500 and keeps the request when the arr check fails', async () => {
+    const seeded = await seedClosableRequest(MediaRequestStatus.PENDING);
+    configureRadarr([{ id: 0, isDefault: true }]);
+    getLibraryMoviesImpl = async () => {
+      throw new Error('connect ECONNREFUSED');
+    };
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+
+    const res = await agent.post(`/request/${seeded.id}/not-found`);
+
+    assert.strictEqual(res.status, 500);
+    assert.strictEqual(
+      (
+        await getRepository(MediaRequest).findOneOrFail({
+          where: { id: seeded.id },
+        })
+      ).status,
+      MediaRequestStatus.PENDING
+    );
+  });
+
+  it('closes the request and lists it under All and Failed only', async () => {
+    const seeded = await seedClosableRequest(MediaRequestStatus.PENDING);
+    configureRadarr([{ id: 0, isDefault: true }]);
+    getLibraryMoviesImpl = async () => [];
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+
+    const res = await agent.post(`/request/${seeded.id}/not-found`);
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.status, MediaRequestStatus.CLOSED);
+
+    const listed = async (filter: string) =>
+      (await agent.get(`/request?filter=${filter}`)).body.results.map(
+        (r: { id: number }) => r.id
+      );
+
+    assert.deepStrictEqual(await listed('all'), [seeded.id]);
+    assert.deepStrictEqual(await listed('failed'), [seeded.id]);
+    assert.deepStrictEqual(await listed('pending'), []);
+    assert.deepStrictEqual(await listed('approved'), []);
+
+    const retry = await agent.post(`/request/${seeded.id}/retry`);
+    assert.strictEqual(retry.status, 409);
+    const approve = await agent.post(`/request/${seeded.id}/approve`);
+    assert.strictEqual(approve.status, 409);
+    const again = await agent.post(`/request/${seeded.id}/not-found`);
+    assert.strictEqual(again.status, 400);
   });
 });
 

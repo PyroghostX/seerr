@@ -1333,7 +1333,7 @@ components:
         status:
           type: number
           example: 0
-          description: Status of the request. 1 = PENDING APPROVAL, 2 = APPROVED, 3 = DECLINED
+          description: Status of the request. 1 = PENDING APPROVAL, 2 = APPROVED, 3 = DECLINED, 4 = FAILED, 5 = COMPLETED, 6 = CLOSED
           readOnly: true
         media:
           $ref: '#/components/schemas/MediaInfo'
@@ -6977,6 +6977,38 @@ paths:
                 $ref: '#/components/schemas/MediaRequest'
         '409':
           description: Only failed requests can be retried
+  /request/{requestId}/not-found:
+    post:
+      summary: Close a request as "could not find it"
+      description: |
+        Closes the request, emails the requester, removes the item from Radarr or Sonarr without deleting any file, and blocks new requests for it. Other requests waiting on the same item are closed the same way. Also returns the request in a JSON object.
+
+        Requires the `MANAGE_REQUESTS` permission or `ADMIN`.
+      tags:
+        - request
+      parameters:
+        - in: path
+          name: requestId
+          description: Request ID
+          required: true
+          schema:
+            type: string
+            example: '1'
+      responses:
+        '200':
+          description: Request closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaRequest'
+        '400':
+          description: Only pending, approved or failed requests can be closed, and upgrade requests cannot
+        '404':
+          description: Request not found
+        '409':
+          description: Radarr has a file for this, it is already available, or no server is configured
+        '500':
+          description: Radarr or Sonarr could not be reached; nothing was changed
   /request/{requestId}/{status}:
     post:
       summary: Update a request's status

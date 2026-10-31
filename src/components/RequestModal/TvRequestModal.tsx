@@ -256,7 +256,8 @@ const TvRequestModal = ({
         (request) =>
           request.is4k === is4k &&
           request.status !== MediaRequestStatus.DECLINED &&
-          request.status !== MediaRequestStatus.COMPLETED
+          request.status !== MediaRequestStatus.COMPLETED &&
+          request.status !== MediaRequestStatus.CLOSED
       )
       .reduce((requestedSeasons, request) => {
         return [
@@ -273,7 +274,8 @@ const TvRequestModal = ({
           (season[is4k ? 'status4k' : 'status'] === MediaStatus.AVAILABLE ||
             season[is4k ? 'status4k' : 'status'] ===
               MediaStatus.PARTIALLY_AVAILABLE ||
-            season[is4k ? 'status4k' : 'status'] === MediaStatus.PROCESSING) &&
+            season[is4k ? 'status4k' : 'status'] === MediaStatus.PROCESSING ||
+            season[is4k ? 'status4k' : 'status'] === MediaStatus.BLOCKLISTED) &&
           !requestedSeasons.includes(season.seasonNumber)
       )
       .map((season) => season.seasonNumber);
@@ -355,7 +357,8 @@ const TvRequestModal = ({
         (request) =>
           request.is4k === is4k &&
           request.status !== MediaRequestStatus.DECLINED &&
-          request.status !== MediaRequestStatus.COMPLETED
+          request.status !== MediaRequestStatus.COMPLETED &&
+          request.status !== MediaRequestStatus.CLOSED
       ).length > 0
     ) {
       data.mediaInfo.requests
@@ -363,7 +366,8 @@ const TvRequestModal = ({
           (request) =>
             request.is4k === is4k &&
             request.status !== MediaRequestStatus.DECLINED &&
-            request.status !== MediaRequestStatus.COMPLETED
+            request.status !== MediaRequestStatus.COMPLETED &&
+            request.status !== MediaRequestStatus.CLOSED
         )
         .forEach((request) => {
           if (!seasonRequest) {
@@ -730,6 +734,12 @@ const TvRequestModal = ({
                               MediaStatus.AVAILABLE && (
                               <Badge badgeType="success">
                                 {intl.formatMessage(globalMessages.available)}
+                              </Badge>
+                            )}
+                            {mediaSeason?.[is4k ? 'status4k' : 'status'] ===
+                              MediaStatus.BLOCKLISTED && (
+                              <Badge badgeType="danger">
+                                {intl.formatMessage(globalMessages.blocklisted)}
                               </Badge>
                             )}
                           </td>
