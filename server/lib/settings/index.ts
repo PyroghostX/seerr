@@ -384,7 +384,8 @@ export type JobId =
   | 'sonarr-era-phases'
   | 'tv-request-reconcile'
   | 'morning-check'
-  | 'availability-check';
+  | 'availability-check'
+  | 'upgrade-check';
 
 export interface AllSettings {
   clientId: string;
@@ -636,6 +637,9 @@ class Settings {
         },
         'morning-check': {
           schedule: '0 0 9 * * *',
+        },
+        'upgrade-check': {
+          schedule: '0 */15 * * * *',
         },
         'availability-check': {
           schedule: '0 20 */6 * * *',

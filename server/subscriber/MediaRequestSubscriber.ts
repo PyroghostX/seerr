@@ -345,6 +345,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
               }
             );
             entity.status = MediaRequestStatus.COMPLETED;
+            entity.upgradePending = true;
           } catch (e) {
             logger.error('Failed to send upgrade request to Radarr', {
               label: 'Media Request',
@@ -649,6 +650,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
               }
             );
             entity.status = MediaRequestStatus.COMPLETED;
+            entity.upgradePending = entity.seasons.length > 0;
             entity.seasons.forEach((season) => {
               season.status = MediaRequestStatus.COMPLETED;
             });

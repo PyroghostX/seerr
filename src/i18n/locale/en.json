@@ -1081,6 +1081,7 @@
   "components.Settings.SettingsJobsCache.sonarr-scan": "Sonarr Scan",
   "components.Settings.SettingsJobsCache.tv-request-reconcile": "TV Request Reconcile",
   "components.Settings.SettingsJobsCache.unknownJob": "Unknown Job",
+  "components.Settings.SettingsJobsCache.upgrade-check": "Upgrade Check",
   "components.Settings.SettingsJobsCache.usersavatars": "Users' Avatars",
   "components.Settings.SettingsLogs.copiedLogMessage": "Copied log message to clipboard.",
   "components.Settings.SettingsLogs.copyToClipboard": "Copy to Clipboard",

@@ -9,6 +9,7 @@ import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
 import { Watchlist } from '@server/entity/Watchlist';
 import { getSettings } from '@server/lib/settings';
+import { fileResolution } from '@server/lib/upgradeCheck';
 import logger from '@server/logger';
 import { mapTvResult } from '@server/models/Search';
 import { mapSeasonWithEpisodes, mapTvDetails } from '@server/models/Tv';
@@ -74,13 +75,7 @@ tvRoutes.get('/:id', async (req, res, next) => {
             )?.name;
             const lowest = new Map<number, number>();
             for (const file of files) {
-              let resolution = file.quality?.quality?.resolution;
-              if (!resolution && file.mediaInfo?.resolution) {
-                const height = Number(file.mediaInfo.resolution.split('x')[1]);
-                if (height) {
-                  resolution = height;
-                }
-              }
+              const resolution = fileResolution(file);
               if (!resolution) {
                 continue;
               }

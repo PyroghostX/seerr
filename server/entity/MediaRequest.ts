@@ -926,6 +926,10 @@ export class MediaRequest {
   @Column({ default: false })
   public upgradeFutureSeasons: boolean;
 
+  /** Handed to Radarr/Sonarr, requester not told yet (server/lib/upgradeCheck.ts) */
+  @Column({ default: false })
+  public upgradePending: boolean;
+
   /** JSON EraPlan (see server/lib/eraPlan.ts); null when the request has a single era */
   @Column({ type: 'text', nullable: true })
   public eraPlan?: string | null;

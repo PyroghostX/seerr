@@ -8,6 +8,7 @@ import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
 import { Watchlist } from '@server/entity/Watchlist';
 import { getSettings } from '@server/lib/settings';
+import { fileResolution } from '@server/lib/upgradeCheck';
 import logger from '@server/logger';
 import { mapMovieDetails } from '@server/models/Movie';
 import { mapMovieResult } from '@server/models/Search';
@@ -51,15 +52,7 @@ movieRoutes.get('/:id', async (req, res, next) => {
             url: RadarrAPI.buildUrl(radarrSettings, '/api/v3'),
           });
           const radarrMovie = await radarr.getMovieByTmdbId(tmdbMovie.id);
-          const file = radarrMovie.movieFile;
-          let resolution = file?.quality?.quality?.resolution;
-          if (!resolution && file?.mediaInfo?.resolution) {
-            // mediaInfo.resolution looks like "1920x1080"
-            const height = Number(file.mediaInfo.resolution.split('x')[1]);
-            if (height) {
-              resolution = height;
-            }
-          }
+          const resolution = fileResolution(radarrMovie.movieFile);
           if (resolution) {
             data.currentResolution = resolution;
           }

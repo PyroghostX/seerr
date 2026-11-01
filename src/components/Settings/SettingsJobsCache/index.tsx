@@ -90,6 +90,7 @@ const messages: { [messageName: string]: MessageDescriptor } = defineMessages(
     'tv-request-reconcile': 'TV Request Reconcile',
     'morning-check': 'Morning Check',
     'availability-check': 'Availability Check',
+    'upgrade-check': 'Upgrade Check',
     'download-sync': 'Download Sync',
     'download-sync-reset': 'Download Sync Reset',
     'image-cache-cleanup': 'Image Cache Cleanup',

@@ -26,6 +26,10 @@ import {
   isTvRequestReconcileRunning,
   reconcileTvRequests,
 } from '@server/lib/tvRequestReconcile';
+import {
+  isUpgradeCheckRunning,
+  runUpgradeCheck,
+} from '@server/lib/upgradeCheck';
 import watchlistSync from '@server/lib/watchlistsync';
 import logger from '@server/logger';
 import schedule from 'node-schedule';
@@ -333,6 +337,28 @@ export const startJobs = (): void => {
       });
     }),
     running: () => isMorningCheckRunning(),
+  });
+
+  // Tells requesters when an upgrade's 1080p files have arrived
+  // (see server/lib/upgradeCheck.ts)
+  scheduledJobs.push({
+    id: 'upgrade-check',
+    name: 'Upgrade Check',
+    type: 'process',
+    interval: 'minutes',
+    cronSchedule: jobs['upgrade-check'].schedule,
+    job: schedule.scheduleJob(jobs['upgrade-check'].schedule, () => {
+      logger.debug('Starting scheduled job: Upgrade Check', {
+        label: 'Jobs',
+      });
+      runUpgradeCheck().catch((e) => {
+        logger.error('Failed to run Upgrade Check', {
+          label: 'Upgrade Check',
+          errorMessage: e.message,
+        });
+      });
+    }),
+    running: () => isUpgradeCheckRunning(),
   });
 
   // Compares Plex episode counts with Sonarr's files per season and records
