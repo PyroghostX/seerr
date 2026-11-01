@@ -42,6 +42,7 @@ export const MISMATCH_GRACE_MS = 6 * HOUR_MS;
 export const UNFILLED_LINE_CAP = 15;
 export const MISSING_LINE_CAP = 20;
 export const MISMATCH_LINE_CAP = 15;
+export const UPGRADE_LINE_CAP = 10;
 // Discord rejects webhook messages whose content is over 2000 characters.
 export const DISCORD_CONTENT_LIMIT = 2000;
 const MAX_LINE_LENGTH = 200;
@@ -289,16 +290,28 @@ export function buildMorningCheckMessage(
   {
     mismatchLines = [],
     mismatchesUrl,
+    upgradeLines = [],
     limit = DISCORD_CONTENT_LIMIT,
-  }: { mismatchLines?: string[]; mismatchesUrl?: string; limit?: number } = {}
+  }: {
+    mismatchLines?: string[];
+    mismatchesUrl?: string;
+    upgradeLines?: string[];
+    limit?: number;
+  } = {}
 ): string | null {
-  if (!unfilledLines.length && !missingLines.length && !mismatchLines.length) {
+  if (
+    !unfilledLines.length &&
+    !missingLines.length &&
+    !mismatchLines.length &&
+    !upgradeLines.length
+  ) {
     return null;
   }
 
   let unfilledCap = Math.min(UNFILLED_LINE_CAP, unfilledLines.length);
   let missingCap = Math.min(MISSING_LINE_CAP, missingLines.length);
   let mismatchCap = Math.min(MISMATCH_LINE_CAP, mismatchLines.length);
+  let upgradeCap = Math.min(UPGRADE_LINE_CAP, upgradeLines.length);
 
   const render = (): string => {
     const sections: string[] = [];
@@ -311,6 +324,18 @@ export function buildMorningCheckMessage(
           } not filled after 24 hours:**`,
           unfilledLines,
           unfilledCap
+        )
+      );
+    }
+
+    if (upgradeLines.length) {
+      sections.push(
+        renderSection(
+          `**${upgradeLines.length} ${
+            upgradeLines.length === 1 ? 'upgrade' : 'upgrades'
+          } not finished after 24 hours:**`,
+          upgradeLines,
+          upgradeCap
         )
       );
     }
@@ -350,14 +375,16 @@ export function buildMorningCheckMessage(
 
   while (
     message.length > limit &&
-    (unfilledCap > 0 || missingCap > 0 || mismatchCap > 0)
+    (unfilledCap > 0 || missingCap > 0 || mismatchCap > 0 || upgradeCap > 0)
   ) {
-    const largest = Math.max(unfilledCap, missingCap, mismatchCap);
+    const largest = Math.max(unfilledCap, missingCap, mismatchCap, upgradeCap);
 
     if (missingCap === largest) {
       missingCap--;
     } else if (mismatchCap === largest) {
       mismatchCap--;
+    } else if (upgradeCap === largest) {
+      upgradeCap--;
     } else {
       unfilledCap--;
     }
@@ -520,6 +547,61 @@ async function collectUnfilledRequests(
   return lines;
 }
 
+/**
+ * Upgrades still waiting for their 1080p files. The Upgrade Check job drops
+ * them after UPGRADE_WAIT_DAYS, which also takes them off this list.
+ */
+async function collectStalledUpgrades(
+  now: Date
+): Promise<UnfilledRequestLine[]> {
+  const tmdb = new TheMovieDb();
+  const requests = await getRepository(MediaRequest).find({
+    relations: { media: true, seasons: true, requestedBy: true },
+    where: {
+      upgradePending: true,
+      createdAt: LessThanOrEqual(new Date(now.getTime() - UNFILLED_AFTER_MS)),
+    },
+    order: { createdAt: 'ASC' },
+  });
+  const lines: UnfilledRequestLine[] = [];
+
+  for (const request of requests) {
+    const media = request.media as Media;
+    const shared = {
+      seerrId: `${request.type}/${media.tmdbId}`,
+      requestedBy: request.requestedBy?.displayName ?? 'Unknown',
+      createdAt: request.createdAt,
+    };
+
+    try {
+      if (request.type === MediaType.MOVIE) {
+        const movie = await tmdb.getMovie({ movieId: media.tmdbId });
+        lines.push({
+          ...shared,
+          title: movie.title,
+          year: movie.release_date?.slice(0, 4) || undefined,
+        });
+      } else {
+        const show = await tmdb.getTvShow({ tvId: media.tmdbId });
+        lines.push({
+          ...shared,
+          title: show.name,
+          year: show.first_air_date?.slice(0, 4) || undefined,
+          missingSeasons: request.seasons.map((s) => s.seasonNumber),
+        });
+      }
+    } catch (e) {
+      logger.warn('Failed to fetch a stalled upgrade for Morning Check', {
+        label: 'Morning Check',
+        requestId: request.id,
+        errorMessage: e.message,
+      });
+    }
+  }
+
+  return lines;
+}
+
 async function collectMissingEpisodes(
   now: Date
 ): Promise<MissingEpisodeLine[]> {
@@ -597,6 +679,7 @@ export async function runMorningCheck(): Promise<void> {
     const unfilled = await collectUnfilledRequests(now);
     const missing = await collectMissingEpisodes(now);
     const mismatches = await collectMismatches(now);
+    const upgrades = await collectStalledUpgrades(now);
     const settings = getSettings();
     const applicationUrl = settings.main.applicationUrl?.replace(/\/+$/, '');
 
@@ -605,6 +688,7 @@ export async function runMorningCheck(): Promise<void> {
       missing.map(formatMissingLine),
       {
         mismatchLines: mismatches.map(formatMismatchLine),
+        upgradeLines: upgrades.map((line) => formatUnfilledLine(line, now)),
         mismatchesUrl: applicationUrl
           ? `${applicationUrl}/mismatches`
           : undefined,
@@ -628,6 +712,7 @@ export async function runMorningCheck(): Promise<void> {
       unfilledRequests: unfilled.length,
       missingEpisodes: missing.length,
       mismatches: mismatches.length,
+      stalledUpgrades: upgrades.length,
       sent: !!message,
     });
   } finally {

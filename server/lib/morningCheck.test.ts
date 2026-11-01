@@ -365,6 +365,27 @@ describe('buildMorningCheckMessage', () => {
     );
   });
 
+  it('lists stalled upgrades after the unfilled requests', () => {
+    assert.equal(
+      buildMorningCheckMessage(['• A'], ['• B — S1E1'], {
+        upgradeLines: ['• C [movie/1] — requested by D, 3 days ago'],
+      }),
+      '**1 request not filled after 24 hours:**\n• A\n\n' +
+        '**1 upgrade not finished after 24 hours:**\n' +
+        '• C [movie/1] — requested by D, 3 days ago\n\n' +
+        '**1 recently missing episode:**\n• B — S1E1'
+    );
+  });
+
+  it('reports when stalled upgrades are the only news', () => {
+    assert.equal(
+      buildMorningCheckMessage([], [], {
+        upgradeLines: ['• A', '• B'],
+      }),
+      '**2 upgrades not finished after 24 hours:**\n• A\n• B'
+    );
+  });
+
   it('caps the lists and says how many more there are', () => {
     const unfilled = Array.from({ length: 18 }, (_, i) => `• R${i}`);
     const missing = Array.from({ length: 25 }, (_, i) => `• E${i}`);
