@@ -91,6 +91,7 @@ const messages: { [messageName: string]: MessageDescriptor } = defineMessages(
     'morning-check': 'Morning Check',
     'availability-check': 'Availability Check',
     'upgrade-check': 'Upgrade Check',
+    'damaged-files-check': 'Damaged Files',
     'download-sync': 'Download Sync',
     'download-sync-reset': 'Download Sync Reset',
     'image-cache-cleanup': 'Image Cache Cleanup',

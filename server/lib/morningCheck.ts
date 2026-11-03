@@ -15,7 +15,9 @@ import { getRepository } from '@server/datasource';
 import AvailabilityMismatch from '@server/entity/AvailabilityMismatch';
 import type Media from '@server/entity/Media';
 import { MediaRequest } from '@server/entity/MediaRequest';
+import ScannedFile from '@server/entity/ScannedFile';
 import type Season from '@server/entity/Season';
+import { formatDamagedLine } from '@server/lib/damagedFiles';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { airedEpisodeCount } from '@server/utils/airedEpisodes';
@@ -43,6 +45,7 @@ export const UNFILLED_LINE_CAP = 15;
 export const MISSING_LINE_CAP = 20;
 export const MISMATCH_LINE_CAP = 15;
 export const UPGRADE_LINE_CAP = 10;
+export const DAMAGED_LINE_CAP = 15;
 // Discord rejects webhook messages whose content is over 2000 characters.
 export const DISCORD_CONTENT_LIMIT = 2000;
 const MAX_LINE_LENGTH = 200;
@@ -291,11 +294,13 @@ export function buildMorningCheckMessage(
     mismatchLines = [],
     mismatchesUrl,
     upgradeLines = [],
+    damagedLines = [],
     limit = DISCORD_CONTENT_LIMIT,
   }: {
     mismatchLines?: string[];
     mismatchesUrl?: string;
     upgradeLines?: string[];
+    damagedLines?: string[];
     limit?: number;
   } = {}
 ): string | null {
@@ -303,7 +308,8 @@ export function buildMorningCheckMessage(
     !unfilledLines.length &&
     !missingLines.length &&
     !mismatchLines.length &&
-    !upgradeLines.length
+    !upgradeLines.length &&
+    !damagedLines.length
   ) {
     return null;
   }
@@ -312,6 +318,7 @@ export function buildMorningCheckMessage(
   let missingCap = Math.min(MISSING_LINE_CAP, missingLines.length);
   let mismatchCap = Math.min(MISMATCH_LINE_CAP, mismatchLines.length);
   let upgradeCap = Math.min(UPGRADE_LINE_CAP, upgradeLines.length);
+  let damagedCap = Math.min(DAMAGED_LINE_CAP, damagedLines.length);
 
   const render = (): string => {
     const sections: string[] = [];
@@ -368,6 +375,18 @@ export function buildMorningCheckMessage(
       sections.push(section);
     }
 
+    if (damagedLines.length) {
+      sections.push(
+        renderSection(
+          `**${damagedLines.length} damaged ${
+            damagedLines.length === 1 ? 'file' : 'files'
+          }:**`,
+          damagedLines,
+          damagedCap
+        )
+      );
+    }
+
     return sections.join('\n\n');
   };
 
@@ -375,14 +394,26 @@ export function buildMorningCheckMessage(
 
   while (
     message.length > limit &&
-    (unfilledCap > 0 || missingCap > 0 || mismatchCap > 0 || upgradeCap > 0)
+    (unfilledCap > 0 ||
+      missingCap > 0 ||
+      mismatchCap > 0 ||
+      upgradeCap > 0 ||
+      damagedCap > 0)
   ) {
-    const largest = Math.max(unfilledCap, missingCap, mismatchCap, upgradeCap);
+    const largest = Math.max(
+      unfilledCap,
+      missingCap,
+      mismatchCap,
+      upgradeCap,
+      damagedCap
+    );
 
     if (missingCap === largest) {
       missingCap--;
     } else if (mismatchCap === largest) {
       mismatchCap--;
+    } else if (damagedCap === largest) {
+      damagedCap--;
     } else if (upgradeCap === largest) {
       upgradeCap--;
     } else {
@@ -655,8 +686,9 @@ async function collectMismatches(now: Date): Promise<AvailabilityMismatch[]> {
 /**
  * Daily Discord summary of approved requests still not filled after a day
  * (released movies, TV with aired but unavailable seasons), episodes Sonarr
- * has been missing for a while and seasons whose Plex and Sonarr episode
- * counts disagree. Sends nothing when all three are empty.
+ * has been missing for a while, seasons whose Plex and Sonarr episode counts
+ * disagree and files the Damaged Files job found gaps in. Sends nothing when
+ * all of them are empty.
  */
 export async function runMorningCheck(): Promise<void> {
   if (running) {
@@ -680,6 +712,10 @@ export async function runMorningCheck(): Promise<void> {
     const missing = await collectMissingEpisodes(now);
     const mismatches = await collectMismatches(now);
     const upgrades = await collectStalledUpgrades(now);
+    const damaged = await getRepository(ScannedFile).find({
+      where: { damaged: true },
+      order: { path: 'ASC' },
+    });
     const settings = getSettings();
     const applicationUrl = settings.main.applicationUrl?.replace(/\/+$/, '');
 
@@ -689,6 +725,7 @@ export async function runMorningCheck(): Promise<void> {
       {
         mismatchLines: mismatches.map(formatMismatchLine),
         upgradeLines: upgrades.map((line) => formatUnfilledLine(line, now)),
+        damagedLines: damaged.map(formatDamagedLine),
         mismatchesUrl: applicationUrl
           ? `${applicationUrl}/mismatches`
           : undefined,
@@ -713,6 +750,7 @@ export async function runMorningCheck(): Promise<void> {
       missingEpisodes: missing.length,
       mismatches: mismatches.length,
       stalledUpgrades: upgrades.length,
+      damagedFiles: damaged.length,
       sent: !!message,
     });
   } finally {

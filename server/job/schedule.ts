@@ -5,6 +5,10 @@ import {
   runAvailabilityCheck,
 } from '@server/lib/availabilityMismatch';
 import availabilitySync from '@server/lib/availabilitySync';
+import {
+  isDamagedFilesCheckRunning,
+  runDamagedFilesCheck,
+} from '@server/lib/damagedFiles';
 import downloadTracker from '@server/lib/downloadtracker';
 import { eraPhaseRunner } from '@server/lib/eraPhases';
 import ImageProxy from '@server/lib/imageproxy';
@@ -359,6 +363,28 @@ export const startJobs = (): void => {
       });
     }),
     running: () => isUpgradeCheckRunning(),
+  });
+
+  // Daily look for gaps in the video files, ahead of the Morning Check that
+  // reports them (see server/lib/damagedFiles.ts)
+  scheduledJobs.push({
+    id: 'damaged-files-check',
+    name: 'Damaged Files',
+    type: 'process',
+    interval: 'days',
+    cronSchedule: jobs['damaged-files-check'].schedule,
+    job: schedule.scheduleJob(jobs['damaged-files-check'].schedule, () => {
+      logger.info('Starting scheduled job: Damaged Files', {
+        label: 'Jobs',
+      });
+      runDamagedFilesCheck().catch((e) => {
+        logger.error('Failed to run Damaged Files', {
+          label: 'Damaged Files',
+          errorMessage: e.message,
+        });
+      });
+    }),
+    running: () => isDamagedFilesCheckRunning(),
   });
 
   // Compares Plex episode counts with Sonarr's files per season and records

@@ -357,6 +357,13 @@ describe('buildMorningCheckMessage', () => {
     assert.equal(buildMorningCheckMessage([], []), null);
   });
 
+  it('lists damaged files on their own', () => {
+    assert.equal(
+      buildMorningCheckMessage([], [], { damagedLines: ['• A', '• B'] }),
+      '**2 damaged files:**\n• A\n• B'
+    );
+  });
+
   it('renders both sections', () => {
     assert.equal(
       buildMorningCheckMessage(['• A'], ['• B — S1E1', '• C — S1E2']),

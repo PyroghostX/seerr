@@ -1033,6 +1033,7 @@
   "components.Settings.SettingsJobsCache.dnscacheflushed": "{hostname} dns cache flushed.",
   "components.Settings.SettingsJobsCache.dnscachehits": "Hits",
   "components.Settings.SettingsJobsCache.dnscachemisses": "Misses",
+  "components.Settings.SettingsJobsCache.damaged-files-check": "Damaged Files",
   "components.Settings.SettingsJobsCache.dnscachename": "Hostname",
   "components.Settings.SettingsJobsCache.download-sync": "Download Sync",
   "components.Settings.SettingsJobsCache.download-sync-reset": "Download Sync Reset",

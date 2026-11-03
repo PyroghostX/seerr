@@ -385,7 +385,8 @@ export type JobId =
   | 'tv-request-reconcile'
   | 'morning-check'
   | 'availability-check'
-  | 'upgrade-check';
+  | 'upgrade-check'
+  | 'damaged-files-check';
 
 export interface AllSettings {
   clientId: string;
@@ -643,6 +644,9 @@ class Settings {
         },
         'availability-check': {
           schedule: '0 20 */6 * * *',
+        },
+        'damaged-files-check': {
+          schedule: '0 30 7 * * *',
         },
       },
       network: {
