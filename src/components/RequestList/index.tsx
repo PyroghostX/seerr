@@ -30,6 +30,7 @@ const messages = defineMessages('components.RequestList', {
   showallrequests: 'Show All Requests',
   sortAdded: 'Most Recent',
   sortModified: 'Last Modified',
+  needsHelp: 'Needs Help',
   sortDirection: 'Toggle Sort Direction',
   unableToConnect:
     'Unable to connect to {services}. Some information may be unavailable.',
@@ -42,6 +43,7 @@ enum Filter {
   PROCESSING = 'processing',
   AVAILABLE = 'available',
   UNAVAILABLE = 'unavailable',
+  NEEDS_HELP = 'needshelp',
   FAILED = 'failed',
   DELETED = 'deleted',
   COMPLETED = 'completed',
@@ -239,6 +241,11 @@ const RequestList = () => {
               <option value="unavailable">
                 {intl.formatMessage(globalMessages.unavailable)}
               </option>
+              {hasPermission(Permission.MANAGE_REQUESTS) && (
+                <option value="needshelp">
+                  {intl.formatMessage(messages.needsHelp)}
+                </option>
+              )}
               <option value="deleted">
                 {intl.formatMessage(globalMessages.deleted)}
               </option>

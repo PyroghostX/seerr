@@ -51,6 +51,7 @@ export const DISCORD_CONTENT_LIMIT = 2000;
 const MAX_LINE_LENGTH = 200;
 
 export interface UnfilledRequestLine {
+  requestId?: number;
   title: string;
   year?: string;
   /** Seerr page path, e.g. "tv/271489", so same-named titles can be told apart. */
@@ -78,7 +79,8 @@ export function isUnfilledCandidate(
     MediaRequest,
     'status' | 'isUpgrade' | 'createdAt' | 'is4k' | 'media'
   >,
-  now = new Date()
+  now = new Date(),
+  maxAgeMs = UNFILLED_MAX_AGE_MS
 ): boolean {
   if (request.status !== MediaRequestStatus.APPROVED || request.isUpgrade) {
     return false;
@@ -93,7 +95,7 @@ export function isUnfilledCandidate(
   if (
     Number.isNaN(createdAt) ||
     now.getTime() - createdAt <= UNFILLED_AFTER_MS ||
-    now.getTime() - createdAt > UNFILLED_MAX_AGE_MS
+    now.getTime() - createdAt > maxAgeMs
   ) {
     return false;
   }
@@ -460,7 +462,8 @@ function getMorningCheckWebhook(): string | undefined {
 }
 
 async function collectUnfilledRequests(
-  now: Date
+  now: Date,
+  maxAgeMs = UNFILLED_MAX_AGE_MS
 ): Promise<UnfilledRequestLine[]> {
   const settings = getSettings();
   const region = settings.main.discoverRegion || 'US';
@@ -477,7 +480,7 @@ async function collectUnfilledRequests(
       status: MediaRequestStatus.APPROVED,
       isUpgrade: false,
       createdAt: Between(
-        new Date(now.getTime() - UNFILLED_MAX_AGE_MS),
+        new Date(now.getTime() - maxAgeMs),
         new Date(now.getTime() - UNFILLED_AFTER_MS)
       ),
     },
@@ -489,7 +492,7 @@ async function collectUnfilledRequests(
   const lines: UnfilledRequestLine[] = [];
 
   for (const request of requests) {
-    if (!isUnfilledCandidate(request, now)) {
+    if (!isUnfilledCandidate(request, now, maxAgeMs)) {
       continue;
     }
 
@@ -519,6 +522,7 @@ async function collectUnfilledRequests(
         }
 
         lines.push({
+          requestId: request.id,
           title: movie.title,
           year: movie.release_date?.slice(0, 4) || undefined,
           seerrId: `movie/${media.tmdbId}`,
@@ -558,6 +562,7 @@ async function collectUnfilledRequests(
         }
 
         lines.push({
+          requestId: request.id,
           title: show.name,
           year: show.first_air_date?.slice(0, 4) || undefined,
           seerrId: `tv/${media.tmdbId}`,
@@ -576,6 +581,32 @@ async function collectUnfilledRequests(
   }
 
   return lines;
+}
+
+const NEEDS_HELP_CACHE_MS = 2 * 60 * 1000;
+let needsHelpCache: { at: number; ids: Promise<number[]> } | undefined;
+
+/**
+ * Ids of the requests on the "Needs Help" list: the Morning Check's unfilled
+ * requests (approved, released or aired, still not found after 24 hours)
+ * with no upper age limit. Each check costs a TMDB lookup per title, so the
+ * answer is kept for two minutes and shared by every page of the list.
+ */
+export function getNeedsHelpRequestIds(now = new Date()): Promise<number[]> {
+  if (
+    needsHelpCache &&
+    now.getTime() - needsHelpCache.at < NEEDS_HELP_CACHE_MS
+  ) {
+    return needsHelpCache.ids;
+  }
+  const ids = collectUnfilledRequests(now, Number.MAX_SAFE_INTEGER / 2).then(
+    (lines) => lines.flatMap((line) => (line.requestId ? [line.requestId] : []))
+  );
+  needsHelpCache = { at: now.getTime(), ids };
+  ids.catch(() => {
+    if (needsHelpCache?.ids === ids) needsHelpCache = undefined;
+  });
+  return ids;
 }
 
 /**

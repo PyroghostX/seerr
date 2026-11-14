@@ -582,6 +582,7 @@
   "components.RequestList.RequestItem.unreleasedseasondate": "Not yet released. Season {number} premieres {date}",
   "components.RequestList.RequestItem.unreleasedseasons": "Not yet released. Seasons {numbers}",
   "components.RequestList.RequestItem.upgrade": "Upgrade",
+  "components.RequestList.needsHelp": "Needs Help",
   "components.RequestList.requests": "Requests",
   "components.RequestList.showallrequests": "Show All Requests",
   "components.RequestList.sortAdded": "Most Recent",

@@ -22,6 +22,7 @@ import type {
   MediaRequestBody,
   RequestResultsResponse,
 } from '@server/interfaces/api/requestInterfaces';
+import { getNeedsHelpRequestIds } from '@server/lib/morningCheck';
 import {
   NotFoundCloseError,
   closeRequestAsNotFound,
@@ -50,6 +51,7 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
       switch (req.query.filter) {
         case 'approved':
         case 'processing':
+        case 'needshelp':
           statusFilter = [MediaRequestStatus.APPROVED];
           break;
         case 'pending':
@@ -96,6 +98,7 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
           break;
         case 'processing':
         case 'unavailable':
+        case 'needshelp':
           mediaStatusFilter = [
             MediaStatus.UNKNOWN,
             MediaStatus.PENDING,
@@ -174,6 +177,15 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
       } else if (requestedBy) {
         query = query.andWhere('requestedBy.id = :id', {
           id: requestedBy,
+        });
+      }
+
+      if (req.query.filter === 'needshelp') {
+        // Approved and released (or aired) but still not found after a day:
+        // the same rule as the Morning Check, without its age cap.
+        const ids = await getNeedsHelpRequestIds();
+        query = query.andWhere('request.id IN (:...needsHelpIds)', {
+          needsHelpIds: ids.length ? ids : [-1],
         });
       }
 
