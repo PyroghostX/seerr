@@ -96,7 +96,7 @@ const RequestList = () => {
         : router.query.userId
           ? `&requestedBy=${router.query.userId}`
           : canPickUsers && selectedUsers !== null
-            ? `&requestedByIds=${selectedUsers.length ? selectedUsers.join(',') : 'none'}`
+            ? `&requestedByIds=${selectedUsers.length ? encodeURIComponent(selectedUsers.join(',')) : 'none'}`
             : ''
     }`
   );
