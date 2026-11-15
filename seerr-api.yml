@@ -6740,6 +6740,13 @@ paths:
             nullable: true
             example: 1
         - in: query
+          name: requestedByIds
+          description: Comma-separated user IDs to show requests for ("none" for no users). Only for users who can view all requests.
+          schema:
+            type: string
+            nullable: true
+            example: 1,4,7
+        - in: query
           name: mediaType
           schema:
             type: string

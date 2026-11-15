@@ -4,6 +4,7 @@ import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import Tooltip from '@app/components/Common/Tooltip';
 import RequestItem from '@app/components/RequestList/RequestItem';
+import UserFilter from '@app/components/RequestList/UserFilter';
 import { useUpdateQueryParams } from '@app/hooks/useUpdateQueryParams';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
@@ -68,6 +69,15 @@ const RequestList = () => {
   const [currentSortDirection, setCurrentSortDirection] =
     useState<SortDirection>('desc');
   const [currentPageSize, setCurrentPageSize] = useState<number>(10);
+  // null = every user; only on the main request list for people who can see
+  // everyone's requests (a profile or user page is already one user)
+  const [selectedUsers, setSelectedUsers] = useState<number[] | null>(null);
+  const canPickUsers =
+    !router.pathname.startsWith('/profile') &&
+    !router.query.userId &&
+    hasPermission([Permission.MANAGE_REQUESTS, Permission.REQUEST_VIEW], {
+      type: 'or',
+    });
 
   const page = router.query.page ? Number(router.query.page) : 1;
   const pageIndex = page - 1;
@@ -85,7 +95,9 @@ const RequestList = () => {
         ? `&requestedBy=${currentUser?.id}`
         : router.query.userId
           ? `&requestedBy=${router.query.userId}`
-          : ''
+          : canPickUsers && selectedUsers !== null
+            ? `&requestedByIds=${selectedUsers.length ? selectedUsers.join(',') : 'none'}`
+            : ''
     }`
   );
 
@@ -99,6 +111,14 @@ const RequestList = () => {
       setCurrentFilter(filterSettings.currentFilter);
       setCurrentSort(filterSettings.currentSort);
       setCurrentPageSize(filterSettings.currentPageSize);
+      if (
+        Array.isArray(filterSettings.selectedUsers) &&
+        filterSettings.selectedUsers.every((id: unknown) =>
+          Number.isInteger(id)
+        )
+      ) {
+        setSelectedUsers(filterSettings.selectedUsers);
+      }
       if (['asc', 'desc'].includes(filterSettings.currentSortDirection)) {
         setCurrentSortDirection(filterSettings.currentSortDirection);
       }
@@ -120,9 +140,11 @@ const RequestList = () => {
         currentSort,
         currentSortDirection,
         currentPageSize,
+        selectedUsers,
       })
     );
   }, [
+    selectedUsers,
     currentFilter,
     currentMediaType,
     currentSort,
@@ -198,6 +220,15 @@ const RequestList = () => {
               </option>
             </select>
           </div>
+          {canPickUsers && (
+            <UserFilter
+              selected={selectedUsers}
+              onChange={(next) => {
+                setSelectedUsers(next);
+                router.push({ pathname: router.pathname, query: {} });
+              }}
+            />
+          )}
           <div className="mb-2 flex flex-grow sm:mb-0 sm:mr-2 lg:flex-grow-0">
             <span className="inline-flex cursor-default items-center rounded-l-md border border-r-0 border-gray-500 bg-gray-800 px-3 text-sm text-gray-100">
               <FunnelIcon className="h-6 w-6" />
@@ -334,13 +365,15 @@ const RequestList = () => {
             {intl.formatMessage(globalMessages.noresults)}
           </span>
           {(currentFilter !== Filter.ALL ||
-            currentMediaType !== Filter.ALL) && (
+            currentMediaType !== Filter.ALL ||
+            (canPickUsers && selectedUsers !== null)) && (
             <div className="mt-4">
               <Button
                 buttonType="primary"
                 onClick={() => {
                   setCurrentFilter(Filter.ALL);
                   setCurrentMediaType(Filter.ALL);
+                  setSelectedUsers(null);
                 }}
               >
                 {intl.formatMessage(messages.showallrequests)}

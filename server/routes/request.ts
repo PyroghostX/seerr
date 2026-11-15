@@ -178,6 +178,17 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
         query = query.andWhere('requestedBy.id = :id', {
           id: requestedBy,
         });
+      } else if (req.query.requestedByIds !== undefined) {
+        // The request list's user picker: comma-separated user ids, or
+        // "none" when every user is unticked (nothing to show).
+        const ids = req.query.requestedByIds
+          .toString()
+          .split(',')
+          .map(Number)
+          .filter((id) => Number.isInteger(id) && id > 0);
+        query = query.andWhere('requestedBy.id IN (:...requestedByIds)', {
+          requestedByIds: ids.length ? ids : [-1],
+        });
       }
 
       if (req.query.filter === 'needshelp') {
