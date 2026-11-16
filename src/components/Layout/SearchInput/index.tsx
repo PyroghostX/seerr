@@ -2,6 +2,7 @@ import useSearchInput from '@app/hooks/useSearchInput';
 import defineMessages from '@app/utils/defineMessages';
 import { XCircleIcon } from '@heroicons/react/24/outline';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/solid';
+import { useRef } from 'react';
 import { useIntl } from 'react-intl';
 
 const messages = defineMessages('components.Layout.SearchInput', {
@@ -11,6 +12,7 @@ const messages = defineMessages('components.Layout.SearchInput', {
 const SearchInput = () => {
   const intl = useIntl();
   const { searchValue, setSearchValue, setIsOpen, clear } = useSearchInput();
+  const inputRef = useRef<HTMLInputElement>(null);
   return (
     <div className="flex flex-1">
       <div className="flex w-full">
@@ -23,13 +25,19 @@ const SearchInput = () => {
           </div>
           <input
             id="search_field"
+            ref={inputRef}
             style={{ paddingRight: searchValue.length > 0 ? '1.75rem' : '' }}
             className="block w-full rounded-full border border-gray-600 bg-gray-900/80 py-2 pl-10 text-white placeholder-gray-300 hover:border-gray-500 focus:border-gray-500 focus:bg-gray-900 focus:placeholder-gray-400 focus:outline-none focus:ring-0 sm:text-base"
             placeholder={intl.formatMessage(messages.searchPlaceholder)}
             type="search"
             autoComplete="off"
             value={searchValue}
-            onChange={(e) => setSearchValue(e.target.value)}
+            onChange={(e) => {
+              setSearchValue(e.target.value);
+              // The input can stay focused after the X clears it, so onFocus
+              // doesn't fire again: typing reopens the search here instead
+              setIsOpen(true);
+            }}
             onFocus={() => setIsOpen(true)}
             onBlur={() => {
               if (searchValue === '') {
@@ -46,7 +54,15 @@ const SearchInput = () => {
           {searchValue.length > 0 && (
             <button
               className="absolute inset-y-0 right-2 m-auto h-7 w-7 border-none p-1 text-gray-400 outline-none transition hover:text-white focus:border-none focus:outline-none"
-              onClick={() => clear()}
+              // Keep the input focused (and the phone keyboard up) when the X is
+              // pressed: no blur on press, and focus it again on click
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                inputRef.current?.focus();
+                clear();
+              }}
+              type="button"
+              aria-label="Clear search"
             >
               <XCircleIcon className="h-5 w-5" />
             </button>
