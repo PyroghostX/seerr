@@ -565,6 +565,7 @@
   "components.RequestList.RequestItem.mediaerror": "{mediaType} Not Found",
   "components.RequestList.RequestItem.modified": "Modified",
   "components.RequestList.RequestItem.modifieduserdate": "{date} by {user}",
+  "components.RequestList.RequestItem.openarr": "Open in {arr}",
   "components.RequestList.RequestItem.profileName": "Profile",
   "components.RequestList.RequestItem.removearr": "Remove from {arr}",
   "components.RequestList.RequestItem.removemediaerror": "Something went wrong while removing the media.",

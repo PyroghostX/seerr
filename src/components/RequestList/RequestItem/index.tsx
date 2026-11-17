@@ -26,6 +26,7 @@ import {
   CheckIcon,
   MagnifyingGlassIcon,
   PencilIcon,
+  ServerIcon,
   TrashIcon,
   XMarkIcon,
 } from '@heroicons/react/24/solid';
@@ -71,6 +72,7 @@ const messages = defineMessages('components.RequestList.RequestItem', {
   tvdbid: 'TheTVDB ID',
   unknowntitle: 'Unknown Title',
   removearr: 'Remove from {arr}',
+  openarr: 'Open in {arr}',
   removemediaerror: 'Something went wrong while removing the media.',
   profileName: 'Profile',
 });
@@ -833,7 +835,32 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
             )}
           </div>
         </div>
-        <div className="z-10 mt-4 flex w-full flex-col justify-center space-y-2 pl-4 pr-4 xl:mt-0 xl:w-96 xl:items-end xl:pl-0">
+        {/* Two columns of half-width buttons, so four actions fit the card's height */}
+        <div className="z-10 mt-4 grid w-full grid-cols-2 content-center gap-2 pl-4 pr-4 xl:mt-0 xl:w-96 xl:pl-0 [&_button]:!px-2">
+          {hasPermission(Permission.MANAGE_REQUESTS) &&
+            (requestData.is4k
+              ? requestData.media.serviceUrl4k
+              : requestData.media.serviceUrl) && (
+              <a
+                href={
+                  (requestData.is4k
+                    ? requestData.media.serviceUrl4k
+                    : requestData.media.serviceUrl) as string
+                }
+                target="_blank"
+                rel="noreferrer"
+                className="block w-full"
+              >
+                <Button className="w-full" buttonType="ghost">
+                  <ServerIcon />
+                  <span>
+                    {intl.formatMessage(messages.openarr, {
+                      arr: requestData.type === 'movie' ? 'Radarr' : 'Sonarr',
+                    })}
+                  </span>
+                </Button>
+              </a>
+            )}
           {requestData.status === MediaRequestStatus.FAILED &&
             hasPermission(Permission.MANAGE_REQUESTS) && (
               <Button
@@ -885,7 +912,7 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
             )}
           {requestData.status === MediaRequestStatus.PENDING &&
             hasPermission(Permission.MANAGE_REQUESTS) && (
-              <div className="flex w-full flex-row space-x-2">
+              <div className="col-span-2 flex w-full flex-row space-x-2">
                 <span className="w-full">
                   <Button
                     className="w-full"
