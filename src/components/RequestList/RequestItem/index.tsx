@@ -836,7 +836,7 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
           </div>
         </div>
         {/* Two columns of half-width buttons, so four actions fit the card's height */}
-        <div className="z-10 mt-4 grid w-full grid-cols-2 content-center gap-2 pl-4 pr-4 xl:mt-0 xl:w-96 xl:pl-0 [&_button]:!px-2">
+        <div className="z-10 mt-4 grid w-full grid-cols-2 content-center gap-2 pl-4 pr-4 xl:mt-0 xl:w-[27rem] xl:shrink-0 xl:pl-0 [&_button]:whitespace-nowrap [&_button]:!px-2">
           {hasPermission(Permission.MANAGE_REQUESTS) &&
             (requestData.is4k
               ? requestData.media.serviceUrl4k
