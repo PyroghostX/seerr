@@ -271,9 +271,9 @@ const TvRequestModal = ({
     const availableSeasons = (data?.mediaInfo?.seasons ?? [])
       .filter(
         (season) =>
+          // Partially available seasons stay requestable so the missing
+          // episodes can be searched for again.
           (season[is4k ? 'status4k' : 'status'] === MediaStatus.AVAILABLE ||
-            season[is4k ? 'status4k' : 'status'] ===
-              MediaStatus.PARTIALLY_AVAILABLE ||
             season[is4k ? 'status4k' : 'status'] === MediaStatus.PROCESSING ||
             season[is4k ? 'status4k' : 'status'] === MediaStatus.BLOCKLISTED) &&
           !requestedSeasons.includes(season.seasonNumber)
@@ -602,6 +602,13 @@ const TvRequestModal = ({
                           sn[is4k ? 'status4k' : 'status'] !==
                             MediaStatus.DELETED
                       );
+                      // A season with episodes missing can be requested again,
+                      // so its switch isn't locked on.
+                      const lockedSeason =
+                        mediaSeason?.[is4k ? 'status4k' : 'status'] ===
+                        MediaStatus.PARTIALLY_AVAILABLE
+                          ? undefined
+                          : mediaSeason;
                       return (
                         <tr key={`season-${season.id}`}>
                           <td
@@ -614,7 +621,7 @@ const TvRequestModal = ({
                               role="checkbox"
                               tabIndex={0}
                               aria-checked={
-                                !!mediaSeason ||
+                                !!lockedSeason ||
                                 (!!seasonRequest &&
                                   !editingSeasons.includes(
                                     season.seasonNumber
@@ -628,7 +635,7 @@ const TvRequestModal = ({
                                 }
                               }}
                               className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer items-center justify-center pt-2 focus:outline-none ${
-                                mediaSeason ||
+                                lockedSeason ||
                                 (quota?.tv.limit &&
                                   currentlyRemaining <= 0 &&
                                   !isSelectedSeason(season.seasonNumber)) ||
@@ -641,7 +648,7 @@ const TvRequestModal = ({
                               <span
                                 aria-hidden="true"
                                 className={`${
-                                  !!mediaSeason ||
+                                  !!lockedSeason ||
                                   (!!seasonRequest &&
                                     !editingSeasons.includes(
                                       season.seasonNumber
@@ -654,7 +661,7 @@ const TvRequestModal = ({
                               <span
                                 aria-hidden="true"
                                 className={`${
-                                  !!mediaSeason ||
+                                  !!lockedSeason ||
                                   (!!seasonRequest &&
                                     !editingSeasons.includes(
                                       season.seasonNumber

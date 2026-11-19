@@ -520,7 +520,9 @@ export class MediaRequest {
           }, [] as number[]);
       }
 
-      // We should also check seasons that are available/partially available but don't have existing requests
+      // We should also check seasons that are available but don't have existing requests.
+      // A partially available season (episodes missing) can be requested again, so
+      // Sonarr monitors and searches it for the missing episodes.
       if (media.seasons) {
         existingSeasons = [
           ...existingSeasons,
@@ -530,7 +532,9 @@ export class MediaRequest {
                 season[requestBody.is4k ? 'status4k' : 'status'] !==
                   MediaStatus.UNKNOWN &&
                 season[requestBody.is4k ? 'status4k' : 'status'] !==
-                  MediaStatus.DELETED
+                  MediaStatus.DELETED &&
+                season[requestBody.is4k ? 'status4k' : 'status'] !==
+                  MediaStatus.PARTIALLY_AVAILABLE
             )
             .map((season) => season.seasonNumber),
         ];
